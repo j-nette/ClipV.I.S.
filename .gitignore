@@ -32,3 +32,6 @@ Thumbs.db
 # runtime logs
 agent/out.log
 agent/err.log
+
+# generated voice samples
+voice/samples/
