@@ -1,0 +1,30 @@
+# Visual Studio
+.vs/
+*.user
+bin/
+obj/
+
+# Node
+node_modules/
+dist/
+build/
+.env
+.env.local
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+
+# Large model artifacts (use Git LFS if needed)
+*.psd
+*.blend1
