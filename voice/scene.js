@@ -225,7 +225,14 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
+function setLabelsVisible(v) {
+  for (const g of [modelGroup, compareGroup]) {
+    g.traverse((o) => { if (o.isSprite) o.visible = v; });
+  }
+}
+
 function renderSingle() {
+  setLabelsVisible(true);
   renderer.setScissorTest(false);
   renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
   controls.update();
@@ -237,23 +244,25 @@ function renderPinwheel() {
   const s = Math.min(W, H) * holo.size;   // size of each face viewport
   const g = holo.gap;                      // gap from center to each face's inner edge
   const cx = W / 2, cy = H / 2;
-  // 4 faces arranged around screen center, each a different side, rolled so the
-  // model's base points toward center (correct for an upright acrylic pyramid).
+  // Same front-on view, rolled 0/90/180/270 and placed around center. The model's
+  // own spin provides the 3D; rolling (not orbiting) avoids the degenerate-camera shear.
   const faces = [
-    { x: cx - s / 2,     y: cy + g,         azim: 0,            roll: 0 },             // top
-    { x: cx + g,         y: cy - s / 2,     azim: Math.PI / 2,  roll: -Math.PI / 2 },  // right
-    { x: cx - s / 2,     y: cy - g - s,     azim: Math.PI,      roll: Math.PI },       // bottom
-    { x: cx - g - s,     y: cy - s / 2,     azim: -Math.PI / 2, roll: Math.PI / 2 },   // left
+    { x: cx - s / 2,     y: cy + g,         roll: 0 },              // top
+    { x: cx + g,         y: cy - s / 2,     roll: Math.PI / 2 },    // right
+    { x: cx - s / 2,     y: cy - g - s,     roll: Math.PI },        // bottom
+    { x: cx - g - s,     y: cy - s / 2,     roll: -Math.PI / 2 },   // left
   ];
+  setLabelsVisible(false); // billboarded text breaks the pyramid illusion
   renderer.setScissorTest(true);
   for (const f of faces) {
     renderer.setViewport(f.x, f.y, s, s);
     renderer.setScissor(f.x, f.y, s, s);
     holoCam.aspect = 1;
+    // Fixed front camera (slightly elevated); only the in-plane roll changes per face.
     holoCam.position.set(
-      target.x + holo.dist * Math.sin(f.azim) * Math.cos(holo.elev),
+      target.x,
       target.y + holo.dist * Math.sin(holo.elev),
-      target.z + holo.dist * Math.cos(f.azim) * Math.cos(holo.elev)
+      target.z + holo.dist * Math.cos(holo.elev)
     );
     holoCam.up.set(Math.sin(f.roll), Math.cos(f.roll), 0);
     holoCam.lookAt(target);
