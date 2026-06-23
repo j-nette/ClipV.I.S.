@@ -125,15 +125,16 @@ if (SR) {
     els.listen.classList.remove("active");
     console.warn("speech error:", e.error);
     if (e.error === "network" || e.error === "service-not-allowed") {
-      // Browser speech cloud is blocked (corp network). Switch to on-device Whisper.
+      // Browser speech cloud is blocked (corp network). Switch to on-device Whisper
+      // and start recording immediately so the user doesn't need an extra click.
       mode = "local";
-      els.heard.textContent = "Cloud speech blocked — switched to on-device. Click Listen again.";
       els.listen.textContent = "🎙️ Listen (on-device)";
-      setStatus("idle");
+      els.heard.textContent = "Cloud speech blocked — using on-device. Recording…";
+      toggleLocalListening();
       return;
     }
     const reasons = {
-      "not-allowed": "Mic blocked — allow microphone via the 🔒 in the address bar",
+      "not-allowed": "Mic blocked — allow microphone via the 🔒 in the address bar, then reload",
       "no-speech": "Didn't hear anything — click, then speak",
       "audio-capture": "No microphone found",
       "aborted": "Listening stopped",
