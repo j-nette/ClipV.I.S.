@@ -28,6 +28,8 @@ export class StandaloneScene implements Consumer {
   /** Plane the grabbed box slides along while dragging (parallel to camera). */
   private readonly dragPlane = new THREE.Plane();
   private readonly dragPoint = new THREE.Vector3();
+  /** Offset from the grabbed point to the box center, so it's held where pinched. */
+  private readonly grabOffset = new THREE.Vector3();
 
   private readonly baseColor = new THREE.Color(0x3b82f6);
   private readonly hoverColor = new THREE.Color(0x22d3ee);
@@ -127,14 +129,21 @@ export class StandaloneScene implements Consumer {
     // Drag plane: passes through the box, faces the camera.
     const normal = this.camera.getWorldDirection(new THREE.Vector3()).negate();
     this.dragPlane.setFromNormalAndCoplanarPoint(normal, box.position);
-    void ndc;
+    // Preserve where on the object the pinch landed, so it's held at that point
+    // (not snapped to its center) for the rest of the drag.
+    this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), this.camera);
+    if (this.raycaster.ray.intersectPlane(this.dragPlane, this.dragPoint)) {
+      this.grabOffset.copy(box.position).sub(this.dragPoint);
+    } else {
+      this.grabOffset.set(0, 0, 0);
+    }
   }
 
   private moveDrag(ndc: NDC): void {
     if (!this.grabbed) return;
     this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), this.camera);
     if (this.raycaster.ray.intersectPlane(this.dragPlane, this.dragPoint)) {
-      this.grabbed.position.copy(this.dragPoint);
+      this.grabbed.position.copy(this.dragPoint).add(this.grabOffset);
     }
   }
 
