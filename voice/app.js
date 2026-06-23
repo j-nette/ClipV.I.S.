@@ -53,21 +53,61 @@ async function handleCommand(userText) {
   }
 }
 
-// ---- TTS: tuned browser voice for Clippy (Azure neural used only if /tts configured) ----
+// ---- TTS: charming voice for Clippy, with a picker (defaults to British) ----
 let preferredVoice = null;
-function pickVoice() {
+const voiceSelect = document.getElementById("voiceSelect");
+const SAVED_VOICE = localStorage.getItem("clippyVoice");
+
+function rankVoice(v) {
+  // Higher = more preferred. Favor British neural/natural voices for charm.
+  let s = 0;
+  if (/en-GB/i.test(v.lang)) s += 100;
+  if (/United Kingdom|British|en-GB/i.test(v.name)) s += 50;
+  if (/Natural|Online|Neural/i.test(v.name)) s += 40;            // Edge neural voices
+  if (/Ryan|Sonia|Libby|Thomas|George|Arthur/i.test(v.name)) s += 30; // nice UK names
+  if (/en-/i.test(v.lang)) s += 5;
+  return s;
+}
+
+function populateVoices() {
   const voices = speechSynthesis.getVoices();
   if (!voices.length) return;
-  // Prefer a pleasant en-US voice for Clippy's cheerful tone.
-  const wanted = ["Microsoft Aria", "Google US English", "Samantha", "Microsoft Zira", "Microsoft Jenny"];
+
+  // Default pick: saved choice, else best-ranked (British) voice.
+  const sorted = [...voices].sort((a, b) => rankVoice(b) - rankVoice(a));
   preferredVoice =
-    wanted.map((n) => voices.find((v) => v.name.includes(n))).find(Boolean) ||
-    voices.find((v) => v.lang === "en-US") ||
-    voices[0];
+    (SAVED_VOICE && voices.find((v) => v.name === SAVED_VOICE)) || sorted[0];
+
+  if (voiceSelect) {
+    voiceSelect.innerHTML = "";
+    // List English voices first (British at top), then the rest.
+    const english = sorted.filter((v) => /en-/i.test(v.lang));
+    const others = sorted.filter((v) => !/en-/i.test(v.lang));
+    for (const v of [...english, ...others]) {
+      const opt = document.createElement("option");
+      opt.value = v.name;
+      opt.textContent = `${v.name} (${v.lang})`;
+      if (preferredVoice && v.name === preferredVoice.name) opt.selected = true;
+      voiceSelect.appendChild(opt);
+    }
+  }
 }
+
 if ("speechSynthesis" in window) {
-  pickVoice();
-  speechSynthesis.onvoiceschanged = pickVoice;
+  populateVoices();
+  speechSynthesis.onvoiceschanged = populateVoices;
+}
+
+if (voiceSelect) {
+  voiceSelect.addEventListener("change", () => {
+    const v = speechSynthesis.getVoices().find((x) => x.name === voiceSelect.value);
+    if (v) {
+      preferredVoice = v;
+      localStorage.setItem("clippyVoice", v.name);
+      // Preview the new voice.
+      speak("Hello! I'm Clippy, at your service.");
+    }
+  });
 }
 
 async function speak(text) {
@@ -92,8 +132,8 @@ async function speak(text) {
     await new Promise((resolve) => {
       const u = new SpeechSynthesisUtterance(text);
       if (preferredVoice) u.voice = preferredVoice;
-      u.rate = 1.05;   // a touch peppy
-      u.pitch = 1.15;  // a touch higher = friendlier Clippy
+      u.rate = 1.0;    // relaxed, charming pace
+      u.pitch = 1.05;  // warm
       u.onend = resolve;
       speechSynthesis.speak(u);
     });

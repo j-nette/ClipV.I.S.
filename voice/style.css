@@ -77,6 +77,23 @@ body {
   outline: none;
 }
 #typebox:focus { border-color: var(--accent); }
+
+.voicepick {
+  display: block;
+  margin-top: .75rem;
+  font-size: .8rem;
+  color: var(--muted);
+}
+.voicepick select {
+  width: 100%;
+  margin-top: .3rem;
+  padding: .45rem .6rem;
+  border-radius: 8px;
+  border: 1px solid #2c3a5e;
+  background: #060912;
+  color: var(--fg);
+  font-size: .82rem;
+}
 .narration {
   margin-top: .5rem;
   min-height: 1.4em;
