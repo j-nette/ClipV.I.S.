@@ -29,8 +29,12 @@ export const LM = {
 /** Pinch when thumb–index distance / hand size drops below this. */
 export const PINCH_THRESHOLD = 0.4;
 
-/** A finger counts as curled when its tip–MCP distance / hand size is below this. */
-export const FIST_CURL_THRESHOLD = 0.5;
+/**
+ * A pinch also requires the index finger to be extended (tip far enough from its
+ * knuckle). In a fist the index tucks into the palm, so this rejects the fist
+ * even though its thumb + index tips are close together.
+ */
+export const INDEX_EXTEND_THRESHOLD = 0.45;
 
 export interface GestureState {
   point: boolean;
@@ -54,9 +58,10 @@ export function detect(hands: HandLandmarks[]): GestureState {
 export function detectHand(hand: HandLandmarks): GestureState {
   const handSize = dist(hand[LM.WRIST], hand[LM.MIDDLE_MCP]) || 1e-6;
   const pinchRatio = dist(hand[LM.THUMB_TIP], hand[LM.INDEX_TIP]) / handSize;
-  // A fist also brings thumb + index tips together, so suppress pinch when the
-  // whole hand is curled (all four fingers folded toward their knuckles).
-  const pinch = pinchRatio < PINCH_THRESHOLD && !isFist(hand, handSize);
+  // The index must be extended (tip away from its knuckle); a fist curls the
+  // index into the palm even though thumb + index tips are close, so it's rejected.
+  const indexExtension = dist(hand[LM.INDEX_TIP], hand[LM.INDEX_MCP]) / handSize;
+  const pinch = pinchRatio < PINCH_THRESHOLD && indexExtension > INDEX_EXTEND_THRESHOLD;
 
   const point = !pinch && isPointing(hand);
 
@@ -65,18 +70,6 @@ export function detectHand(hand: HandLandmarks): GestureState {
   const cursor = toNDC(hand[LM.INDEX_TIP]);
 
   return { point, pinch, cursor, pinchRatio };
-}
-
-/** True when all four fingers are curled toward their knuckles (a closed fist). */
-function isFist(hand: HandLandmarks, handSize: number): boolean {
-  const curled = (tip: number, mcp: number) =>
-    dist(hand[tip], hand[mcp]) / handSize < FIST_CURL_THRESHOLD;
-  return (
-    curled(LM.INDEX_TIP, LM.INDEX_MCP) &&
-    curled(LM.MIDDLE_TIP, LM.MIDDLE_MCP) &&
-    curled(LM.RING_TIP, LM.RING_MCP) &&
-    curled(LM.PINKY_TIP, LM.PINKY_MCP)
-  );
 }
 
 /** Index extended while middle/ring/pinky are curled. */
