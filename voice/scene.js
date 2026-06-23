@@ -118,19 +118,36 @@ function loadModel(group, id, offsetX = 0) {
   );
 }
 
-// ---- Clippy mascot (placeholder paperclip-ish) ----
+// ---- Clippy mascot: real /assets/clippy.glb if present, else placeholder paperclip ----
 const clippy = new THREE.Group();
-const clipMat = new THREE.MeshStandardMaterial({ color: 0xffe45e, emissive: 0xffc400, emissiveIntensity: 0.4, metalness: 0.8, roughness: 0.2 });
-const clipTube = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.06, 12, 40), clipMat);
-clippy.add(clipTube);
-const eyeGeo = new THREE.SphereGeometry(0.07, 16, 16);
-const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.12, 0.12, 0.3);
-const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.12, 0.12, 0.3);
-clippy.add(eyeL, eyeR);
 clippy.position.set(-2.6, 0.8, 0.5);
-clippy.scale.setScalar(0.9);
 scene.add(clippy);
+
+function buildPlaceholderClippy() {
+  const clipMat = new THREE.MeshStandardMaterial({ color: 0xffe45e, emissive: 0xffc400, emissiveIntensity: 0.4, metalness: 0.8, roughness: 0.2 });
+  const clipTube = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.06, 12, 40), clipMat);
+  clippy.add(clipTube);
+  const eyeGeo = new THREE.SphereGeometry(0.07, 16, 16);
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+  const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.12, 0.12, 0.3);
+  const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.12, 0.12, 0.3);
+  clippy.add(eyeL, eyeR);
+  clippy.scale.setScalar(0.9);
+}
+
+loader.load(
+  "/assets/clippy.glb",
+  (gltf) => {
+    const obj = gltf.scene;
+    const box = new THREE.Box3().setFromObject(obj);
+    const size = box.getSize(new THREE.Vector3());
+    const scale = 1.6 / Math.max(size.x, size.y, size.z);
+    obj.scale.setScalar(scale);
+    clippy.add(obj);
+  },
+  undefined,
+  () => buildPlaceholderClippy() // no glb yet -> placeholder
+);
 
 let clippyState = "idle";
 window.setClippyState = (action) => { clippyState = action || "idle"; };
@@ -141,6 +158,23 @@ window.setSceneState = ({ model, compare_to } = {}) => {
   loadModel(compareGroup, compare_to, compare_to ? 1.6 : 0);
 };
 
+// ---- Pyramid (Pepper's Ghost) pinwheel mode ----
+// Toggle with 'H'. Renders the scene 4x around the model so the acrylic pyramid
+// reflects them into a single floating image. Single-view is the default (dev/debug).
+let pinwheel = false;
+const holoCam = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+const HOLO_R = 6;      // camera distance
+const HOLO_EL = 0.30;  // elevation (radians)
+const target = new THREE.Vector3(0, 0.6, 0);
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "h" || e.key === "H") {
+    pinwheel = !pinwheel;
+    scene.background = new THREE.Color(pinwheel ? 0x000000 : 0x05070d);
+    disc.visible = !pinwheel; // hide ground glow in pyramid mode
+  }
+});
+
 // ---- Resize ----
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -150,6 +184,42 @@ function resize() {
 }
 window.addEventListener("resize", resize);
 resize();
+
+function renderSingle() {
+  renderer.setScissorTest(false);
+  renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function renderPinwheel() {
+  const W = window.innerWidth, H = window.innerHeight;
+  const s = Math.min(W, H) * 0.42;     // size of each face viewport
+  const cx = W / 2, cy = H / 2;
+  // 4 faces: top, right, bottom, left. Each shows a different side (azimuth),
+  // rolled so the model's base points toward the screen center.
+  const faces = [
+    { x: cx - s / 2, y: H - s,     azim: 0,            roll: 0 },              // top
+    { x: W - s,      y: cy - s / 2, azim: Math.PI / 2,  roll: -Math.PI / 2 },  // right
+    { x: cx - s / 2, y: 0,         azim: Math.PI,      roll: Math.PI },        // bottom
+    { x: 0,          y: cy - s / 2, azim: -Math.PI / 2, roll: Math.PI / 2 },   // left
+  ];
+  renderer.setScissorTest(true);
+  for (const f of faces) {
+    renderer.setViewport(f.x, f.y, s, s);
+    renderer.setScissor(f.x, f.y, s, s);
+    holoCam.aspect = 1;
+    holoCam.position.set(
+      target.x + HOLO_R * Math.sin(f.azim) * Math.cos(HOLO_EL),
+      target.y + HOLO_R * Math.sin(HOLO_EL),
+      target.z + HOLO_R * Math.cos(f.azim) * Math.cos(HOLO_EL)
+    );
+    holoCam.up.set(Math.sin(f.roll), Math.cos(f.roll), 0);
+    holoCam.lookAt(target);
+    holoCam.updateProjectionMatrix();
+    renderer.render(scene, holoCam);
+  }
+}
 
 // ---- Animate ----
 const clock = new THREE.Clock();
@@ -169,8 +239,8 @@ function tick() {
     clippy.rotation.y = 0;
   }
 
-  controls.update();
-  renderer.render(scene, camera);
+  if (pinwheel) renderPinwheel();
+  else renderSingle();
   requestAnimationFrame(tick);
 }
 tick();
