@@ -20,7 +20,6 @@ async function main(): Promise<void> {
   const overlayCanvas = document.getElementById('overlay') as HTMLCanvasElement | null;
   const statusEl = document.getElementById('status');
   const stateEl = document.getElementById('gesture-state');
-  const previewEl = document.getElementById('preview');
   if (!container) throw new Error('#scene container not found');
 
   // `?debug` reveals the skeleton overlay, camera preview, and key help.
@@ -47,7 +46,7 @@ async function main(): Promise<void> {
   new KeyboardFallback().start();
 
   // Camera + hand tracking (additive; keyboard works regardless).
-  await startHandTracking({ overlayCanvas, statusEl, stateEl, previewEl, debug });
+  await startHandTracking({ overlayCanvas, statusEl, stateEl, debug });
 
   console.info(
     '[gesture] Ready. Add ?debug for skeleton + camera preview. ' +
@@ -59,13 +58,12 @@ interface TrackingDeps {
   overlayCanvas: HTMLCanvasElement | null;
   statusEl: HTMLElement | null;
   stateEl: HTMLElement | null;
-  previewEl: HTMLElement | null;
   debug: boolean;
 }
 
 /** Starts the webcam + MediaPipe loop, rendering the live skeleton overlay. */
 async function startHandTracking(deps: TrackingDeps): Promise<void> {
-  const { overlayCanvas, statusEl, stateEl, previewEl, debug } = deps;
+  const { overlayCanvas, statusEl, stateEl, debug } = deps;
   const setStatus = (text: string) => {
     if (statusEl) statusEl.textContent = text;
   };
@@ -78,9 +76,8 @@ async function startHandTracking(deps: TrackingDeps): Promise<void> {
     setStatus('requesting camera…');
     const { video } = await startCamera({ width: 640, height: 480 });
 
-    // Skeleton overlay + camera preview are debug-only (clean for the real demo).
+    // Skeleton overlay is debug-only (clean for the real demo).
     const overlay = debug && overlayCanvas ? new Overlay(overlayCanvas) : null;
-    if (debug && previewEl) previewEl.appendChild(video);
 
     // Feed per-hand observations through the controller, which applies pinch
     // hysteresis + smoothing and emits manipulation events onto the bus:

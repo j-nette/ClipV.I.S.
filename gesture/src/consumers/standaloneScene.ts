@@ -81,7 +81,10 @@ export class StandaloneScene implements Consumer {
         this.setHighlight(null);
         break;
       case 'pinch_start': {
+        // Pinch only manipulates when it actually lands on a box. A miss leaves
+        // no target, so the ensuing translate/rotate/zoom do nothing.
         const hit = this.pick(e.ndc);
+        this.focused = hit;
         if (hit) this.beginDrag(hit, e.ndc);
         break;
       }
@@ -114,7 +117,6 @@ export class StandaloneScene implements Consumer {
       this.paint(this.highlighted, this.baseColor);
     }
     this.highlighted = box;
-    if (box) this.focused = box;
     if (box && box !== this.grabbed) this.paint(box, this.hoverColor);
   }
 
@@ -143,23 +145,18 @@ export class StandaloneScene implements Consumer {
     this.grabbed = null;
   }
 
-  /** Rotate the focused object (or all boxes if none) by a delta quaternion. */
+  /** Rotate the focused object by a delta quaternion. No-op if no object is focused. */
   private applyRotate(q: Quat): void {
+    if (!this.focused) return;
     const dq = new THREE.Quaternion(q.x, q.y, q.z, q.w);
-    const targets = this.focused ? [this.focused] : this.boxes;
-    for (const t of targets) {
-      t.quaternion.premultiply(dq);
-    }
+    this.focused.quaternion.premultiply(dq);
   }
 
-  /** Scale the focused object (or all boxes if none), clamped. */
+  /** Scale the focused object (clamped). No-op if no object is focused. */
   private applyZoom(delta: number): void {
-    const targets = this.focused ? [this.focused] : this.boxes;
-    const factor = 1 + delta;
-    for (const t of targets) {
-      const s = clamp(t.scale.x * factor, this.minScale, this.maxScale);
-      t.scale.setScalar(s);
-    }
+    if (!this.focused) return;
+    const s = clamp(this.focused.scale.x * (1 + delta), this.minScale, this.maxScale);
+    this.focused.scale.setScalar(s);
   }
 
   private paint(box: THREE.Mesh, color: THREE.Color): void {

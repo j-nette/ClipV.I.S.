@@ -15,13 +15,6 @@
         width: 100%; height: 100%;
         display: none;
       }
-      #preview {
-        position: fixed; right: 16px; bottom: 16px; z-index: 6;
-        width: 200px; border-radius: 10px; overflow: hidden;
-        border: 1px solid #374151; background: #111;
-        display: none;
-      }
-      #preview video { display: block; width: 100%; transform: scaleX(-1); }
       #hud {
         position: fixed; left: 16px; bottom: 16px; z-index: 10;
         padding: 12px 14px; border-radius: 10px;
@@ -30,9 +23,8 @@
         display: none;
       }
       #hud b { color: #22d3ee; }
-      /* Dev mode (?debug) reveals the skeleton overlay, camera preview, and key help. */
+      /* Dev mode (?debug) reveals the skeleton overlay and key help. */
       body.debug #overlay,
-      body.debug #preview,
       body.debug #hud { display: block; }
       #status {
         position: fixed; right: 16px; top: 16px; z-index: 10;
@@ -71,7 +63,6 @@
   <body>
     <div id="scene"></div>
     <canvas id="overlay"></canvas>
-    <div id="preview"></div>
     <div id="status">starting…</div>
     <div id="gesture-state">IDLE</div>
     <div id="hud">
