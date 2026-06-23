@@ -163,13 +163,13 @@ window.setSceneState = ({ model, compare_to } = {}) => {
 // reflects them into a single floating image. Single-view is the default (dev/debug).
 let pinwheel = false;
 const holoCam = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-const target = new THREE.Vector3(0, 0.6, 0);
+const target = new THREE.Vector3(0, 0, 0);
 
 // Live-tunable params (persisted) so you can dial it in against the physical pyramid.
-const DEFAULTS = { size: 0.32, gap: 0.0, dist: 6.0, elev: 0.30 };
+const DEFAULTS = { size: 0.30, gap: 40, dist: 5.0, elev: 0.25 };
 let holo = { ...DEFAULTS };
-try { holo = { ...holo, ...JSON.parse(localStorage.getItem("holo") || "{}") }; } catch (_) {}
-const saveHolo = () => localStorage.setItem("holo", JSON.stringify(holo));
+try { holo = { ...holo, ...JSON.parse(localStorage.getItem("holo2") || "{}") }; } catch (_) {}
+const saveHolo = () => localStorage.setItem("holo2", JSON.stringify(holo));
 
 // On-screen readout + key help (only visible in pyramid mode).
 const hud = document.createElement("div");
@@ -191,6 +191,7 @@ window.addEventListener("keydown", (e) => {
     pinwheel = !pinwheel;
     scene.background = new THREE.Color(pinwheel ? 0x000000 : 0x05070d);
     disc.visible = !pinwheel;
+    clippy.visible = !pinwheel; // clean product-only hologram in pyramid mode
     hud.style.display = pinwheel ? "block" : "none";
     updateHud();
     return;
@@ -231,8 +232,23 @@ function setLabelsVisible(v) {
   }
 }
 
+// Render-to-texture overlay for the pinwheel: render the model ONCE, then stamp 4
+// guaranteed-identical rotated copies. This is the canonical Pepper's Ghost method.
+const RT_SIZE = 1024;
+const rt = new THREE.WebGLRenderTarget(RT_SIZE, RT_SIZE, { samples: 4 });
+const overlayScene = new THREE.Scene();
+const overlayCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const quadMat = new THREE.MeshBasicMaterial({ map: rt.texture, transparent: true });
+const quads = [];
+for (let i = 0; i < 4; i++) {
+  const q = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), quadMat);
+  overlayScene.add(q);
+  quads.push(q);
+}
+
 function renderSingle() {
   setLabelsVisible(true);
+  renderer.setRenderTarget(null);
   renderer.setScissorTest(false);
   renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
   controls.update();
@@ -240,35 +256,41 @@ function renderSingle() {
 }
 
 function renderPinwheel() {
+  setLabelsVisible(false);
+  // 1) Render the model once (front view, slight elevation) into the texture.
+  holoCam.aspect = 1;
+  holoCam.position.set(
+    target.x,
+    target.y + holo.dist * Math.sin(holo.elev),
+    target.z + holo.dist * Math.cos(holo.elev)
+  );
+  holoCam.up.set(0, 1, 0);
+  holoCam.lookAt(target);
+  holoCam.updateProjectionMatrix();
+  renderer.setScissorTest(false);
+  renderer.setRenderTarget(rt);
+  renderer.render(scene, holoCam);
+  renderer.setRenderTarget(null);
+
+  // 2) Stamp 4 rotated copies around screen center via an orthographic overlay.
   const W = window.innerWidth, H = window.innerHeight;
-  const s = Math.min(W, H) * holo.size;   // size of each face viewport
-  const g = holo.gap;                      // gap from center to each face's inner edge
-  const cx = W / 2, cy = H / 2;
-  // Same front-on view, rolled 0/90/180/270 and placed around center. The model's
-  // own spin provides the 3D; rolling (not orbiting) avoids the degenerate-camera shear.
-  const faces = [
-    { x: cx - s / 2,     y: cy + g,         roll: 0 },              // top
-    { x: cx + g,         y: cy - s / 2,     roll: Math.PI / 2 },    // right
-    { x: cx - s / 2,     y: cy - g - s,     roll: Math.PI },        // bottom
-    { x: cx - g - s,     y: cy - s / 2,     roll: -Math.PI / 2 },   // left
+  overlayCam.left = -W / 2; overlayCam.right = W / 2;
+  overlayCam.top = H / 2; overlayCam.bottom = -H / 2;
+  overlayCam.updateProjectionMatrix();
+  const s = Math.min(W, H) * holo.size;
+  const d = holo.gap + s / 2;   // center-to-copy distance
+  const layout = [
+    { x: 0,  y:  d, rot: 0 },              // top
+    { x: d,  y:  0, rot: -Math.PI / 2 },   // right
+    { x: 0,  y: -d, rot: Math.PI },        // bottom
+    { x: -d, y:  0, rot: Math.PI / 2 },    // left
   ];
-  setLabelsVisible(false); // billboarded text breaks the pyramid illusion
-  renderer.setScissorTest(true);
-  for (const f of faces) {
-    renderer.setViewport(f.x, f.y, s, s);
-    renderer.setScissor(f.x, f.y, s, s);
-    holoCam.aspect = 1;
-    // Fixed front camera (slightly elevated); only the in-plane roll changes per face.
-    holoCam.position.set(
-      target.x,
-      target.y + holo.dist * Math.sin(holo.elev),
-      target.z + holo.dist * Math.cos(holo.elev)
-    );
-    holoCam.up.set(Math.sin(f.roll), Math.cos(f.roll), 0);
-    holoCam.lookAt(target);
-    holoCam.updateProjectionMatrix();
-    renderer.render(scene, holoCam);
-  }
+  quads.forEach((q, i) => {
+    q.scale.set(s, s, 1);
+    q.position.set(layout[i].x, layout[i].y, 0);
+    q.rotation.z = layout[i].rot;
+  });
+  renderer.render(overlayScene, overlayCam);
 }
 
 // ---- Animate ----
