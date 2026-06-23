@@ -10,6 +10,14 @@ export interface NDC {
   y: number;
 }
 
+/** Quaternion, w-last, matching Three.js `Quaternion` component order. */
+export interface Quat {
+  x: number;
+  y: number;
+  z: number;
+  w: number;
+}
+
 /**
  * A single MediaPipe hand landmark. x/y are normalized image coords in [0, 1]
  * (x left→right, y top→bottom); z is relative depth (smaller = closer).
@@ -34,8 +42,8 @@ export type GestureEvent =
   | { type: 'pinch_start'; ndc: NDC }
   | { type: 'pinch_move'; ndc: NDC }
   | { type: 'pinch_end' }
-  /** Incremental rotation of the focused object, in radians. dx = yaw, dy = pitch, dz = roll. */
-  | { type: 'rotate'; dx: number; dy: number; dz: number }
+  /** Incremental 3D rotation of the focused object as a delta quaternion. */
+  | { type: 'rotate'; q: Quat }
   /** Incremental zoom of the focused object. Signed scalar: >0 = zoom in, <0 = zoom out. */
   | { type: 'zoom'; delta: number };
 

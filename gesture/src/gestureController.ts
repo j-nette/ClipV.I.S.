@@ -1,6 +1,7 @@
 import { gestureBus } from './eventBus';
 import type { HandObservation } from './gestureDetector';
-import type { GestureEvent, NDC } from './types';
+import type { GestureEvent, NDC, Quat } from './types';
+import { quatMultiply, quatConjugate, quatAngle, quatClampAngle, IDENTITY_QUAT } from './quat';
 
 /**
  * Turns per-hand observations into stable manipulation events on the bus:
@@ -50,7 +51,7 @@ export class GestureController {
 
   // grab session
   private activeLabel: string | null = null;
-  private prevRoll = 0;
+  private prevOrient: Quat = IDENTITY_QUAT;
   private smoothed: NDC | null = null;
   // scale session
   private prevDist = 0;
@@ -123,7 +124,7 @@ export class GestureController {
     if (mode === 'grab') {
       const h = pinching[0];
       this.activeLabel = h.label;
-      this.prevRoll = h.roll;
+      this.prevOrient = h.orient;
       this.smoothed = { ...h.anchor };
       this.emit({ type: 'pinch_start', ndc: this.smoothed });
     } else if (mode === 'scale') {
@@ -144,12 +145,11 @@ export class GestureController {
           }
         : { ...h.anchor };
       this.emit({ type: 'pinch_move', ndc: this.smoothed });
-      // Rotate: in-plane wrist twist → roll, with deadzone + clamp.
-      let dz = angleDelta(this.prevRoll, h.roll);
-      this.prevRoll = h.roll;
-      if (Math.abs(dz) >= this.rotateDeadzone) {
-        dz = clamp(dz, -this.rotateClamp, this.rotateClamp);
-        this.emit({ type: 'rotate', dx: 0, dy: 0, dz });
+      // Rotate: 3D hand-orientation delta → rotate on every axis, clamped.
+      const delta = quatMultiply(h.orient, quatConjugate(this.prevOrient));
+      this.prevOrient = h.orient;
+      if (quatAngle(delta) >= this.rotateDeadzone) {
+        this.emit({ type: 'rotate', q: quatClampAngle(delta, this.rotateClamp) });
       }
     } else if (mode === 'scale') {
       const d = anchorDist(pinching[0], pinching[1]);
@@ -176,11 +176,6 @@ export class GestureController {
 
 function anchorDist(a: HandObservation, b: HandObservation): number {
   return Math.hypot(a.anchor.x - b.anchor.x, a.anchor.y - b.anchor.y);
-}
-
-/** Smallest signed angle from `prev` to `curr`, handling ±π wrap. */
-function angleDelta(prev: number, curr: number): number {
-  return Math.atan2(Math.sin(curr - prev), Math.cos(curr - prev));
 }
 
 function clamp(v: number, min: number, max: number): number {

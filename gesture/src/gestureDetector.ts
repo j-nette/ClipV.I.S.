@@ -1,4 +1,5 @@
-import type { HandLandmarks, Landmark, NDC } from './types';
+import type { HandLandmarks, Landmark, NDC, Quat } from './types';
+import { quatFromBasis, normalize, cross, sub, type Vec3 } from './quat';
 
 /**
  * Pure gesture detection: landmarks → gesture state. No DOM, no events, no
@@ -19,6 +20,7 @@ export const LM = {
   MIDDLE_TIP: 12,
   RING_PIP: 14,
   RING_TIP: 16,
+  PINKY_MCP: 17,
   PINKY_PIP: 18,
   PINKY_TIP: 20,
 } as const;
@@ -87,8 +89,8 @@ export interface HandObservation {
   cursor: NDC;
   /** Thumb–index midpoint in NDC — the grab anchor used while pinching. */
   anchor: NDC;
-  /** In-plane hand roll in radians (wrist → middle-MCP angle). */
-  roll: number;
+  /** Full 3D hand orientation (palm frame) as a quaternion. */
+  orient: Quat;
 }
 
 /** Build observations for every hand in a frame, keyed by handedness label. */
@@ -109,10 +111,6 @@ export function observeHand(hand: HandLandmarks, label: string): HandObservation
   const index = toNDC(hand[LM.INDEX_TIP]);
   const anchor = { x: (thumb.x + index.x) / 2, y: (thumb.y + index.y) / 2 };
 
-  const wrist = toNDC(hand[LM.WRIST]);
-  const mid = toNDC(hand[LM.MIDDLE_MCP]);
-  const roll = Math.atan2(mid.y - wrist.y, mid.x - wrist.x);
-
   return {
     label,
     point: base.point,
@@ -120,8 +118,35 @@ export function observeHand(hand: HandLandmarks, label: string): HandObservation
     pinchRatio: base.pinchRatio,
     cursor: base.cursor ?? index,
     anchor,
-    roll,
+    orient: handOrientation(hand),
   };
+}
+
+/**
+ * Build the hand's 3D orientation from three palm landmarks (wrist, index-MCP,
+ * pinky-MCP). Coordinates are taken in view space (mirrored X, up +Y) so the
+ * object turns the way the user expects. Returns a quaternion; the controller
+ * tracks the frame-to-frame delta to rotate the object on every axis.
+ */
+function handOrientation(hand: HandLandmarks): Quat {
+  // View space: mirror X (selfie), flip Y to up, keep Z.
+  const v = (p: Landmark): Vec3 => ({ x: -p.x, y: -p.y, z: p.z });
+  const wrist = v(hand[LM.WRIST]);
+  const indexMcp = v(hand[LM.INDEX_MCP]);
+  const pinkyMcp = v(hand[LM.PINKY_MCP]);
+
+  const along = sub(indexMcp, wrist); // wrist → index, "forward" along the hand
+  const across = sub(pinkyMcp, wrist); // wrist → pinky, spans the palm
+  let zAxis = normalize(cross(along, across)); // palm normal
+  let xAxis = normalize(along);
+  if (length3(zAxis) < 0.5 || length3(xAxis) < 0.5) return { x: 0, y: 0, z: 0, w: 1 };
+  const yAxis = normalize(cross(zAxis, xAxis));
+  xAxis = cross(yAxis, zAxis); // re-orthogonalize
+  return quatFromBasis(xAxis, yAxis, zAxis);
+}
+
+function length3(a: Vec3): number {
+  return Math.hypot(a.x, a.y, a.z);
 }
 
 function dist(a: Landmark, b: Landmark): number {

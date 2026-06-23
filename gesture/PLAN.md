@@ -10,7 +10,7 @@
 
 ### MVP gestures
 - **Point** — index fingertip → a 3D ray; highlight whatever model it intersects.
-- **Grab (1-hand pinch)** — pinch and move to **translate** the object; **twist the wrist** to **rotate** it (roll).
+- **Grab (1-hand pinch)** — pinch and move to **translate** the object; **rotate your hand in any direction** to **rotate** it on all 3 axes (full 3D orientation tracking).
 - **Scale (2-hand pinch)** — pinch the same object with both hands; move them apart/together to **enlarge/shrink**.
 
 Point is the lightweight highlight. Grab and scale are the pinch-based manipulation model: one pinching hand translates + rotates, two pinching hands scale. All ride the same event bus and have keyboard fallbacks.

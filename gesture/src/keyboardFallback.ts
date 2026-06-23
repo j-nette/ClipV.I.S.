@@ -1,4 +1,5 @@
 import { gestureBus } from './eventBus';
+import { quatFromAxisAngle } from './quat';
 import type { NDC } from './types';
 
 /**
@@ -60,22 +61,22 @@ export class KeyboardFallback {
         this.moveCursor(0, -this.step);
         break;
       case 'q':
-        gestureBus.emit({ type: 'rotate', dx: -this.rotStep, dy: 0, dz: 0 });
+        gestureBus.emit({ type: 'rotate', q: quatFromAxisAngle({ x: 0, y: 1, z: 0 }, -this.rotStep) });
         break;
       case 'e':
-        gestureBus.emit({ type: 'rotate', dx: this.rotStep, dy: 0, dz: 0 });
+        gestureBus.emit({ type: 'rotate', q: quatFromAxisAngle({ x: 0, y: 1, z: 0 }, this.rotStep) });
         break;
       case 'r':
-        gestureBus.emit({ type: 'rotate', dx: 0, dy: -this.rotStep, dz: 0 });
+        gestureBus.emit({ type: 'rotate', q: quatFromAxisAngle({ x: 1, y: 0, z: 0 }, -this.rotStep) });
         break;
       case 'f':
-        gestureBus.emit({ type: 'rotate', dx: 0, dy: this.rotStep, dz: 0 });
+        gestureBus.emit({ type: 'rotate', q: quatFromAxisAngle({ x: 1, y: 0, z: 0 }, this.rotStep) });
         break;
       case 'c':
-        gestureBus.emit({ type: 'rotate', dx: 0, dy: 0, dz: -this.rotStep });
+        gestureBus.emit({ type: 'rotate', q: quatFromAxisAngle({ x: 0, y: 0, z: 1 }, -this.rotStep) });
         break;
       case 'v':
-        gestureBus.emit({ type: 'rotate', dx: 0, dy: 0, dz: this.rotStep });
+        gestureBus.emit({ type: 'rotate', q: quatFromAxisAngle({ x: 0, y: 0, z: 1 }, this.rotStep) });
         break;
       case 'z':
         gestureBus.emit({ type: 'zoom', delta: this.zoomStep });

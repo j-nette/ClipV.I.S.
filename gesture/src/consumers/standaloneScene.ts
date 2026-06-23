@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Consumer, GestureEvent, NDC } from '../types';
+import type { Consumer, GestureEvent, NDC, Quat } from '../types';
 
 /**
  * Self-contained Three.js scene for the laptop screen. A few boxes that can be
@@ -92,7 +92,7 @@ export class StandaloneScene implements Consumer {
         this.endDrag();
         break;
       case 'rotate':
-        this.applyRotate(e.dx, e.dy, e.dz);
+        this.applyRotate(e.q);
         break;
       case 'zoom':
         this.applyZoom(e.delta);
@@ -143,13 +143,12 @@ export class StandaloneScene implements Consumer {
     this.grabbed = null;
   }
 
-  /** Rotate the focused object (or all boxes if none) by yaw/pitch/roll deltas. */
-  private applyRotate(dx: number, dy: number, dz: number): void {
+  /** Rotate the focused object (or all boxes if none) by a delta quaternion. */
+  private applyRotate(q: Quat): void {
+    const dq = new THREE.Quaternion(q.x, q.y, q.z, q.w);
     const targets = this.focused ? [this.focused] : this.boxes;
     for (const t of targets) {
-      t.rotation.y += dx;
-      t.rotation.x += dy;
-      t.rotation.z += dz;
+      t.quaternion.premultiply(dq);
     }
   }
 

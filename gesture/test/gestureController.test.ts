@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { GestureController } from '../src/gestureController';
 import type { HandObservation } from '../src/gestureDetector';
 import type { GestureEvent } from '../src/types';
+import { quatFromAxisAngle, quatAngle, IDENTITY_QUAT } from '../src/quat';
 
 /** Build a hand observation; not pinching, not pointing, centered, by default. */
 function hand(partial: Partial<HandObservation> = {}): HandObservation {
@@ -12,7 +13,7 @@ function hand(partial: Partial<HandObservation> = {}): HandObservation {
     pinchRatio: 1,
     cursor: { x: 0, y: 0 },
     anchor: { x: 0, y: 0 },
-    roll: 0,
+    orient: IDENTITY_QUAT,
     ...partial,
   };
 }
@@ -34,25 +35,26 @@ describe('GestureController (manipulation)', () => {
     expect(types(events)).toEqual(['pinch_start', 'pinch_move']);
   });
 
-  it('twisting the hand while grabbing emits a roll rotation', () => {
+  it('twisting the hand while grabbing emits a 3D rotation', () => {
     const { controller, events } = makeController();
-    controller.update([hand({ pinchRatio: 0.2, roll: 0 })]);
+    controller.update([hand({ pinchRatio: 0.2, orient: IDENTITY_QUAT })]);
     events.length = 0;
-    controller.update([hand({ pinchRatio: 0.2, roll: 0.2 })]);
+    // Rotate the hand 0.2 rad about an arbitrary axis.
+    const twisted = quatFromAxisAngle({ x: 0, y: 1, z: 0 }, 0.2);
+    controller.update([hand({ pinchRatio: 0.2, orient: twisted })]);
     const rot = events.find((e) => e.type === 'rotate');
     expect(rot).toBeDefined();
     if (rot && rot.type === 'rotate') {
-      expect(rot.dz).toBeCloseTo(0.2, 5);
-      expect(rot.dx).toBe(0);
-      expect(rot.dy).toBe(0);
+      expect(quatAngle(rot.q)).toBeCloseTo(0.2, 5);
     }
   });
 
   it('does not emit rotate for sub-deadzone twist', () => {
     const { controller, events } = makeController();
-    controller.update([hand({ pinchRatio: 0.2, roll: 0 })]);
+    controller.update([hand({ pinchRatio: 0.2, orient: IDENTITY_QUAT })]);
     events.length = 0;
-    controller.update([hand({ pinchRatio: 0.2, roll: 0.005 })]); // below 0.01 deadzone
+    const tiny = quatFromAxisAngle({ x: 1, y: 0, z: 0 }, 0.005); // below 0.01 deadzone
+    controller.update([hand({ pinchRatio: 0.2, orient: tiny })]);
     expect(events.some((e) => e.type === 'rotate')).toBe(false);
   });
 
