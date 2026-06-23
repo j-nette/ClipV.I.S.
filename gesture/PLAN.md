@@ -236,7 +236,7 @@ Every phase is verifiable on a plain laptop screen. `hologram/` integration is a
 | **1 — Camera + tracking** (DONE) | `getUserMedia` → MediaPipe `HandLandmarker` → live skeleton renders in `index.html`. Assets bundled locally. Standalone test passes. | MediaPipe WASM assets |
 | **2 — Detection** (DONE) | `gestureDetector` returns correct `point`/`pinch` from live landmarks; console logs `PINCH START` / `POINT`. Unit tests on synthetic landmark fixtures (7 passing). | Phase 1 |
 | **3 — Smoothing + emit** (DONE) | `GestureController` debounces, smooths (EMA), applies pinch hysteresis, and emits events; **pinch-drag a real box in StandaloneScene with your hand.** 13 tests passing. | Phase 0 + 2 |
-| **4 — Polish** (only if time) | Overlay tint states, cursor smoothing tuned, `?debug` flag, error toasts. | Phase 3 |
+| **4 — Polish** (DONE) | Overlay tint states, `?debug` flag (skeleton + camera preview + key help, off by default), error toasts on camera failure. | Phase 3 |
 | **5 — Hologram adapter** (optional, only if hologram ready) | Write `hologramAdapter.ts`; `?consumer=hologram` drives the pyramid with the *same* events. | Phase 3 + hologram raycast hook |
 
 **Cut decision gate (Wed night):** if the camera path isn't *reliable* (pinch grabs the right object ≥9/10 tries, no false fires while talking with hands), ship the **keyboard-only StandaloneScene** — still a working laptop demo. If `hologram/` slips, Phase 5 is simply skipped. The main demo is unaffected either way.

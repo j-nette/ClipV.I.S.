@@ -20,7 +20,12 @@ async function main(): Promise<void> {
   const overlayCanvas = document.getElementById('overlay') as HTMLCanvasElement | null;
   const statusEl = document.getElementById('status');
   const stateEl = document.getElementById('gesture-state');
+  const previewEl = document.getElementById('preview');
   if (!container) throw new Error('#scene container not found');
+
+  // `?debug` reveals the skeleton overlay, camera preview, and key help.
+  const debug = new URLSearchParams(location.search).has('debug');
+  if (debug) document.body.classList.add('debug');
 
   // Consumer selection. Default is the laptop-screen StandaloneScene.
   // `?consumer=hologram` will select HologramAdapter once Phase 5 exists.
@@ -41,20 +46,26 @@ async function main(): Promise<void> {
   // Always-on keyboard producer.
   new KeyboardFallback().start();
 
-  // Phase 1: camera + hand tracking (additive; keyboard works regardless).
-  await startHandTracking(overlayCanvas, statusEl, stateEl);
+  // Camera + hand tracking (additive; keyboard works regardless).
+  await startHandTracking({ overlayCanvas, statusEl, stateEl, previewEl, debug });
 
   console.info(
-    '[gesture] Ready. Keyboard: P=point, G=pinch, arrows=move, Q/E/R/F=rotate, Z/X/wheel=zoom.',
+    '[gesture] Ready. Add ?debug for skeleton + camera preview. ' +
+      'Keyboard: P=point, G=grab, arrows=move, Q/E/R/F/C/V=rotate, Z/X/wheel=zoom.',
   );
 }
 
+interface TrackingDeps {
+  overlayCanvas: HTMLCanvasElement | null;
+  statusEl: HTMLElement | null;
+  stateEl: HTMLElement | null;
+  previewEl: HTMLElement | null;
+  debug: boolean;
+}
+
 /** Starts the webcam + MediaPipe loop, rendering the live skeleton overlay. */
-async function startHandTracking(
-  overlayCanvas: HTMLCanvasElement | null,
-  statusEl: HTMLElement | null,
-  stateEl: HTMLElement | null,
-): Promise<void> {
+async function startHandTracking(deps: TrackingDeps): Promise<void> {
+  const { overlayCanvas, statusEl, stateEl, previewEl, debug } = deps;
   const setStatus = (text: string) => {
     if (statusEl) statusEl.textContent = text;
   };
@@ -67,11 +78,13 @@ async function startHandTracking(
     setStatus('requesting camera…');
     const { video } = await startCamera({ width: 640, height: 480 });
 
-    const overlay = overlayCanvas ? new Overlay(overlayCanvas) : null;
+    // Skeleton overlay + camera preview are debug-only (clean for the real demo).
+    const overlay = debug && overlayCanvas ? new Overlay(overlayCanvas) : null;
+    if (debug && previewEl) previewEl.appendChild(video);
 
     // Feed per-hand observations through the controller, which applies pinch
     // hysteresis + smoothing and emits manipulation events onto the bus:
-    //   1 pinch  → grab (translate + roll-rotate)
+    //   1 pinch  → grab (translate + 3D rotate)
     //   2 pinch  → scale
     //   point    → highlight
     const controller = new GestureController();
@@ -87,10 +100,11 @@ async function startHandTracking(
   } catch (err) {
     const msg =
       err instanceof CameraError
-        ? `camera unavailable (${err.kind}) — keyboard fallback active`
-        : 'hand tracking failed to start — keyboard fallback active';
+        ? `Camera unavailable (${err.kind}). Keyboard controls still work.`
+        : 'Hand tracking failed to start. Keyboard controls still work.';
     console.warn('[gesture]', msg, err);
-    setStatus(msg);
+    setStatus('keyboard-only');
+    showToast(msg, { error: true, durationMs: 6000 });
   }
 }
 
@@ -128,6 +142,19 @@ function toTint(hands: HandObservation[], mode: Mode): GestureState {
 function createHologramAdapterStub(): Consumer {
   console.warn('[gesture] HologramAdapter not implemented yet — falling back to no-op consumer.');
   return { handle: () => {} };
+}
+
+let toastTimer = 0;
+/** Show a transient message (auto-hides). Used for camera/tracking errors. */
+function showToast(message: string, opts: { error?: boolean; durationMs?: number } = {}): void {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = message;
+  el.className = `show${opts.error ? ' error' : ''}`;
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    el.className = el.className.replace('show', '').trim();
+  }, opts.durationMs ?? 4000);
 }
 
 void main();
