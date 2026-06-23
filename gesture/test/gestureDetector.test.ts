@@ -57,6 +57,25 @@ describe('gestureDetector', () => {
     expect(state.cursor).not.toBeNull();
   });
 
+  it('does NOT pinch for a closed fist (thumb + index tips also close)', () => {
+    // All four fingers curled toward their knuckles, thumb resting on index tip.
+    const hand = makeHand({
+      [LM.WRIST]: { x: 0.5, y: 0.9 },
+      [LM.INDEX_MCP]: { x: 0.45, y: 0.6 },
+      [LM.MIDDLE_MCP]: { x: 0.5, y: 0.6 },
+      [LM.RING_MCP]: { x: 0.55, y: 0.6 },
+      [LM.PINKY_MCP]: { x: 0.6, y: 0.6 },
+      [LM.INDEX_TIP]: { x: 0.46, y: 0.58 },
+      [LM.MIDDLE_TIP]: { x: 0.5, y: 0.58 },
+      [LM.RING_TIP]: { x: 0.55, y: 0.58 },
+      [LM.PINKY_TIP]: { x: 0.6, y: 0.58 },
+      [LM.THUMB_TIP]: { x: 0.46, y: 0.58 },
+    });
+    const state = detectHand(hand);
+    expect(state.pinchRatio).toBeLessThan(PINCH_THRESHOLD); // tips are close…
+    expect(state.pinch).toBe(false); // …but it's a fist, so no pinch
+  });
+
   it('detects point when index is extended and other fingers are curled', () => {
     const hand = openHand();
     // Curl middle/ring/pinky (tip below its PIP in image space).
