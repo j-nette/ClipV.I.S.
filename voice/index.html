@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClipV.I.S. — Voice</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main>
+    <h1>📎 ClipV.I.S.</h1>
+    <p class="sub">Voice → Foundry agent → hologram</p>
+
+    <button id="listen" class="listen">🎙️ Listen</button>
+    <div id="status" class="status idle">idle</div>
+
+    <div class="heard">
+      <span class="label">Heard:</span> <span id="heard">—</span>
+    </div>
+
+    <pre id="output">{ }</pre>
+
+    <div class="hint">
+      Keyboard fallback (if mic fails):
+      <kbd>1</kbd> show Surface · <kbd>2</kbd> what's it weigh · <kbd>3</kbd> compare to Surface 10
+    </div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
