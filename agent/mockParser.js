@@ -9,6 +9,16 @@ export function mockParse(userText, currentModel) {
     return unknown();
   }
 
+  // chat / greetings — gives a little Jarvis-style banter even in mock mode
+  const greetings = ["hi", "hey", "hello", "yo", "sup", "thanks", "thank you", "how are you", "who are you", "what can you do"];
+  if (greetings.some((g) => t === g || t.startsWith(g + " ") || t.includes("how are you") || t.includes("who are you") || t.includes("what can you"))) {
+    let narration = "Hi! Ask me to show you a model — try the Xbox controller.";
+    if (t.includes("thank")) narration = "Anytime! That's what I'm here for.";
+    else if (t.includes("how are you")) narration = "Sharp as ever and ready to present!";
+    else if (t.includes("who are you")) narration = "I'm Clippy — your holographic co-pilot.";
+    return { intent: "chat", model: null, compare_to: null, clippy: "idle", narration };
+  }
+
   // compare
   if (t.includes("compare") || t.includes("versus") || t.includes(" vs ")) {
     const target = resolveModel(t);
