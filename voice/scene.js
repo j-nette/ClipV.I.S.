@@ -163,16 +163,56 @@ window.setSceneState = ({ model, compare_to } = {}) => {
 // reflects them into a single floating image. Single-view is the default (dev/debug).
 let pinwheel = false;
 const holoCam = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-const HOLO_R = 6;      // camera distance
-const HOLO_EL = 0.30;  // elevation (radians)
 const target = new THREE.Vector3(0, 0.6, 0);
+
+// Live-tunable params (persisted) so you can dial it in against the physical pyramid.
+const DEFAULTS = { size: 0.32, gap: 0.0, dist: 6.0, elev: 0.30 };
+let holo = { ...DEFAULTS };
+try { holo = { ...holo, ...JSON.parse(localStorage.getItem("holo") || "{}") }; } catch (_) {}
+const saveHolo = () => localStorage.setItem("holo", JSON.stringify(holo));
+
+// On-screen readout + key help (only visible in pyramid mode).
+const hud = document.createElement("div");
+hud.id = "holohud";
+hud.style.cssText = "position:fixed;top:12px;right:12px;font:12px/1.6 Segoe UI,sans-serif;color:#7fe9ff;background:rgba(0,0,0,.6);padding:10px 12px;border-radius:10px;display:none;white-space:pre;z-index:10";
+document.body.appendChild(hud);
+function updateHud() {
+  hud.textContent =
+    `PYRAMID MODE  (H to exit)\n` +
+    `size  [ ]   ${holo.size.toFixed(2)}\n` +
+    `gap   - =   ${holo.gap.toFixed(0)}px\n` +
+    `zoom  , .   ${holo.dist.toFixed(1)}\n` +
+    `tilt  ; '   ${holo.elev.toFixed(2)}\n` +
+    `reset 0`;
+}
 
 window.addEventListener("keydown", (e) => {
   if (e.key === "h" || e.key === "H") {
     pinwheel = !pinwheel;
     scene.background = new THREE.Color(pinwheel ? 0x000000 : 0x05070d);
-    disc.visible = !pinwheel; // hide ground glow in pyramid mode
+    disc.visible = !pinwheel;
+    hud.style.display = pinwheel ? "block" : "none";
+    updateHud();
+    return;
   }
+  if (!pinwheel) return;
+  // ignore while typing
+  if (document.activeElement && document.activeElement.id === "typebox") return;
+  const step = e.shiftKey ? 4 : 1;
+  switch (e.key) {
+    case "[": holo.size = Math.max(0.1, holo.size - 0.01 * step); break;
+    case "]": holo.size = Math.min(0.49, holo.size + 0.01 * step); break;
+    case "-": holo.gap = Math.max(-200, holo.gap - 4 * step); break;
+    case "=": holo.gap = Math.min(400, holo.gap + 4 * step); break;
+    case ",": holo.dist = Math.max(2, holo.dist - 0.2 * step); break;
+    case ".": holo.dist = Math.min(14, holo.dist + 0.2 * step); break;
+    case ";": holo.elev = Math.max(-0.4, holo.elev - 0.03 * step); break;
+    case "'": holo.elev = Math.min(1.2, holo.elev + 0.03 * step); break;
+    case "0": holo = { ...DEFAULTS }; break;
+    default: return;
+  }
+  saveHolo();
+  updateHud();
 });
 
 // ---- Resize ----
@@ -194,15 +234,16 @@ function renderSingle() {
 
 function renderPinwheel() {
   const W = window.innerWidth, H = window.innerHeight;
-  const s = Math.min(W, H) * 0.42;     // size of each face viewport
+  const s = Math.min(W, H) * holo.size;   // size of each face viewport
+  const g = holo.gap;                      // gap from center to each face's inner edge
   const cx = W / 2, cy = H / 2;
-  // 4 faces: top, right, bottom, left. Each shows a different side (azimuth),
-  // rolled so the model's base points toward the screen center.
+  // 4 faces arranged around screen center, each a different side, rolled so the
+  // model's base points toward center (correct for an upright acrylic pyramid).
   const faces = [
-    { x: cx - s / 2, y: H - s,     azim: 0,            roll: 0 },              // top
-    { x: W - s,      y: cy - s / 2, azim: Math.PI / 2,  roll: -Math.PI / 2 },  // right
-    { x: cx - s / 2, y: 0,         azim: Math.PI,      roll: Math.PI },        // bottom
-    { x: 0,          y: cy - s / 2, azim: -Math.PI / 2, roll: Math.PI / 2 },   // left
+    { x: cx - s / 2,     y: cy + g,         azim: 0,            roll: 0 },             // top
+    { x: cx + g,         y: cy - s / 2,     azim: Math.PI / 2,  roll: -Math.PI / 2 },  // right
+    { x: cx - s / 2,     y: cy - g - s,     azim: Math.PI,      roll: Math.PI },       // bottom
+    { x: cx - g - s,     y: cy - s / 2,     azim: -Math.PI / 2, roll: Math.PI / 2 },   // left
   ];
   renderer.setScissorTest(true);
   for (const f of faces) {
@@ -210,9 +251,9 @@ function renderPinwheel() {
     renderer.setScissor(f.x, f.y, s, s);
     holoCam.aspect = 1;
     holoCam.position.set(
-      target.x + HOLO_R * Math.sin(f.azim) * Math.cos(HOLO_EL),
-      target.y + HOLO_R * Math.sin(HOLO_EL),
-      target.z + HOLO_R * Math.cos(f.azim) * Math.cos(HOLO_EL)
+      target.x + holo.dist * Math.sin(f.azim) * Math.cos(holo.elev),
+      target.y + holo.dist * Math.sin(holo.elev),
+      target.z + holo.dist * Math.cos(f.azim) * Math.cos(holo.elev)
     );
     holoCam.up.set(Math.sin(f.roll), Math.cos(f.roll), 0);
     holoCam.lookAt(target);

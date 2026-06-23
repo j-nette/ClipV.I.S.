@@ -53,7 +53,23 @@ async function handleCommand(userText) {
   }
 }
 
-// ---- TTS: try server (Azure), fall back to browser speech synthesis ----
+// ---- TTS: tuned browser voice for Clippy (Azure neural used only if /tts configured) ----
+let preferredVoice = null;
+function pickVoice() {
+  const voices = speechSynthesis.getVoices();
+  if (!voices.length) return;
+  // Prefer a pleasant en-US voice for Clippy's cheerful tone.
+  const wanted = ["Microsoft Aria", "Google US English", "Samantha", "Microsoft Zira", "Microsoft Jenny"];
+  preferredVoice =
+    wanted.map((n) => voices.find((v) => v.name.includes(n))).find(Boolean) ||
+    voices.find((v) => v.lang === "en-US") ||
+    voices[0];
+}
+if ("speechSynthesis" in window) {
+  pickVoice();
+  speechSynthesis.onvoiceschanged = pickVoice;
+}
+
 async function speak(text) {
   if (!text) return;
   setStatus("speaking");
@@ -72,20 +88,25 @@ async function speak(text) {
     }
   } catch (_) { /* fall through to browser TTS */ }
 
-  // Browser fallback
   if ("speechSynthesis" in window) {
     await new Promise((resolve) => {
       const u = new SpeechSynthesisUtterance(text);
+      if (preferredVoice) u.voice = preferredVoice;
+      u.rate = 1.05;   // a touch peppy
+      u.pitch = 1.15;  // a touch higher = friendlier Clippy
       u.onend = resolve;
       speechSynthesis.speak(u);
     });
   }
 }
 
-// ---- Speech recognition (Web Speech API) ----
+// ---- Speech recognition: Web Speech API, with on-device Whisper fallback for corp networks ----
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognizing = false;
 let recognition = null;
+let mode = SR ? "web" : "local";   // auto-switch to "local" if web speech is blocked
+let localRecorder = null;
+let localActive = false;
 
 if (SR) {
   recognition = new SR();
@@ -94,10 +115,7 @@ if (SR) {
   recognition.continuous = false;
   recognition.maxAlternatives = 1;
 
-  recognition.onresult = (e) => {
-    const text = e.results[0][0].transcript;
-    handleCommand(text);
-  };
+  recognition.onresult = (e) => handleCommand(e.results[0][0].transcript);
   recognition.onend = () => {
     recognizing = false;
     els.listen.classList.remove("active");
@@ -106,20 +124,23 @@ if (SR) {
     recognizing = false;
     els.listen.classList.remove("active");
     console.warn("speech error:", e.error);
-    // Surface the reason so it isn't a silent on/off.
+    if (e.error === "network" || e.error === "service-not-allowed") {
+      // Browser speech cloud is blocked (corp network). Switch to on-device Whisper.
+      mode = "local";
+      els.heard.textContent = "Cloud speech blocked — switched to on-device. Click Listen again.";
+      els.listen.textContent = "🎙️ Listen (on-device)";
+      setStatus("idle");
+      return;
+    }
     const reasons = {
-      "not-allowed": "Mic blocked — allow microphone in the browser address bar 🔒",
-      "service-not-allowed": "Mic blocked by browser/OS privacy settings",
-      "no-speech": "Didn't hear anything — try again, speak after clicking",
+      "not-allowed": "Mic blocked — allow microphone via the 🔒 in the address bar",
+      "no-speech": "Didn't hear anything — click, then speak",
       "audio-capture": "No microphone found",
-      "network": "Speech service needs internet (use Chrome/Edge)",
       "aborted": "Listening stopped",
     };
     els.heard.textContent = reasons[e.error] || `speech error: ${e.error}`;
     setStatus("idle");
   };
-} else {
-  els.listen.textContent = "🎙️ Mic unsupported — use 1/2/3";
 }
 
 let micGranted = false;
@@ -127,7 +148,7 @@ async function ensureMic() {
   if (micGranted) return true;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach((t) => t.stop()); // we only needed the permission
+    stream.getTracks().forEach((t) => t.stop());
     micGranted = true;
     return true;
   } catch (err) {
@@ -136,12 +157,40 @@ async function ensureMic() {
   }
 }
 
-els.listen.addEventListener("click", async () => {
-  if (!recognition) return;
-  if (recognizing) {
-    recognition.stop();
-    return;
+async function toggleLocalListening() {
+  if (!localActive) {
+    if (!(await ensureMic())) return;
+    const { createLocalRecorder } = await import("./stt.js");
+    localRecorder = createLocalRecorder((s) => { els.heard.textContent = s; });
+    try {
+      await localRecorder.start();
+      localActive = true;
+      els.listen.classList.add("active");
+      setStatus("listening");
+    } catch (err) {
+      console.warn("local start failed:", err.message);
+      els.heard.textContent = "Couldn't start microphone.";
+    }
+  } else {
+    localActive = false;
+    els.listen.classList.remove("active");
+    setStatus("thinking");
+    try {
+      const text = await localRecorder.stop();
+      if (text) handleCommand(text);
+      else { els.heard.textContent = "Didn't catch that — try again."; setStatus("idle"); }
+    } catch (err) {
+      console.warn("transcribe failed:", err.message);
+      els.heard.textContent = "Transcription failed — try the text box.";
+      setStatus("idle");
+    }
   }
+}
+
+els.listen.addEventListener("click", async () => {
+  if (mode === "local") return toggleLocalListening();
+  if (!recognition) return;
+  if (recognizing) { recognition.stop(); return; }
   if (!(await ensureMic())) return;
   try {
     recognizing = true;
@@ -150,7 +199,6 @@ els.listen.addEventListener("click", async () => {
     els.heard.textContent = "listening…";
     recognition.start();
   } catch (err) {
-    // start() throws if called too soon after a previous session
     recognizing = false;
     els.listen.classList.remove("active");
     setStatus("idle");
