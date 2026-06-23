@@ -128,31 +128,63 @@ app.post("/agent", async (req, res) => {
 // --- GET /models : metadata (Fabric or mock) ---
 app.get("/models", async (_req, res) => res.json(await getAllModels()));
 
-// --- POST /tts : narration text -> audio (step 9). Returns 204 if not configured (browser TTS fallback). ---
+// --- POST /tts : narration text -> audio. Priority: ElevenLabs > Azure > 204 (browser fallback). ---
 app.post("/tts", async (req, res) => {
   const { text } = req.body || {};
-  if (!TTS_READY) return res.status(204).end();
-  try {
-    const region = process.env.AZURE_SPEECH_REGION;
-    const voice = process.env.AZURE_SPEECH_VOICE || "en-US-AndrewMultilingualNeural";
-    const ssml = `<speak version='1.0' xml:lang='en-US'><voice name='${voice}'><mstts:express-as style='cheerful' xmlns:mstts='http://www.w3.org/2001/mstts'>${escapeXml(text)}</mstts:express-as></voice></speak>`;
-    const r = await fetch(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
-      method: "POST",
-      headers: {
-        "Ocp-Apim-Subscription-Key": process.env.AZURE_SPEECH_KEY,
-        "Content-Type": "application/ssml+xml",
-        "X-Microsoft-OutputFormat": "audio-16khz-128kbitrate-mono-mp3"
-      },
-      body: ssml
-    });
-    if (!r.ok) throw new Error(`TTS ${r.status}`);
-    res.set("Content-Type", "audio/mpeg");
-    const buf = Buffer.from(await r.arrayBuffer());
-    res.send(buf);
-  } catch (err) {
-    console.error("[/tts] error:", err.message);
-    res.status(204).end();
+  if (!text) return res.status(204).end();
+
+  // 1) ElevenLabs (best/custom voices) — set ELEVENLABS_API_KEY + ELEVENLABS_VOICE_ID
+  if (process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_VOICE_ID) {
+    try {
+      const voiceId = process.env.ELEVENLABS_VOICE_ID;
+      const model = process.env.ELEVENLABS_MODEL || "eleven_turbo_v2_5";
+      const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        method: "POST",
+        headers: {
+          "xi-api-key": process.env.ELEVENLABS_API_KEY,
+          "Content-Type": "application/json",
+          Accept: "audio/mpeg",
+        },
+        body: JSON.stringify({
+          text,
+          model_id: model,
+          voice_settings: { stability: 0.4, similarity_boost: 0.8, style: 0.3 },
+        }),
+      });
+      if (!r.ok) throw new Error(`ElevenLabs ${r.status}: ${await r.text()}`);
+      res.set("Content-Type", "audio/mpeg");
+      return res.send(Buffer.from(await r.arrayBuffer()));
+    } catch (err) {
+      console.error("[/tts] ElevenLabs error:", err.message);
+      // fall through to Azure / browser
+    }
   }
+
+  // 2) Azure Speech
+  if (TTS_READY) {
+    try {
+      const region = process.env.AZURE_SPEECH_REGION;
+      const voice = process.env.AZURE_SPEECH_VOICE || "en-US-AndrewMultilingualNeural";
+      const ssml = `<speak version='1.0' xml:lang='en-US'><voice name='${voice}'><mstts:express-as style='cheerful' xmlns:mstts='http://www.w3.org/2001/mstts'>${escapeXml(text)}</mstts:express-as></voice></speak>`;
+      const r = await fetch(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+        method: "POST",
+        headers: {
+          "Ocp-Apim-Subscription-Key": process.env.AZURE_SPEECH_KEY,
+          "Content-Type": "application/ssml+xml",
+          "X-Microsoft-OutputFormat": "audio-16khz-128kbitrate-mono-mp3",
+        },
+        body: ssml,
+      });
+      if (!r.ok) throw new Error(`Azure TTS ${r.status}`);
+      res.set("Content-Type", "audio/mpeg");
+      return res.send(Buffer.from(await r.arrayBuffer()));
+    } catch (err) {
+      console.error("[/tts] Azure error:", err.message);
+    }
+  }
+
+  // 3) Browser speech-synthesis fallback
+  return res.status(204).end();
 });
 
 function escapeXml(s = "") {
