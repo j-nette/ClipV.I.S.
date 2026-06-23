@@ -3,28 +3,37 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ClipV.I.S. — Voice</title>
+  <title>ClipV.I.S.</title>
   <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
 </head>
 <body>
-  <main>
-    <h1>📎 ClipV.I.S.</h1>
-    <p class="sub">Voice → Foundry agent → hologram</p>
+  <canvas id="stage"></canvas>
 
+  <section id="panel">
+    <h1>📎 ClipV.I.S.</h1>
     <button id="listen" class="listen">🎙️ Listen</button>
     <div id="status" class="status idle">idle</div>
-
-    <div class="heard">
-      <span class="label">Heard:</span> <span id="heard">—</span>
-    </div>
-
-    <pre id="output">{ }</pre>
-
+    <div class="heard"><span class="label">Heard:</span> <span id="heard">—</span></div>
+    <div class="narration" id="narration"></div>
+    <details>
+      <summary>agent JSON</summary>
+      <pre id="output">{ }</pre>
+    </details>
     <div class="hint">
-      Keyboard fallback (if mic fails):
-      <kbd>1</kbd> show Surface · <kbd>2</kbd> what's it weigh · <kbd>3</kbd> compare to Surface 10
+      Try: <em>"Clippy, show me the Xbox controller"</em> · <em>"compare to the Surface Pro 10"</em><br>
+      Keys: <kbd>1</kbd> Surface · <kbd>2</kbd> weigh · <kbd>3</kbd> compare · <kbd>4</kbd> Xbox · <kbd>5</kbd> Building 7
     </div>
-  </main>
+  </section>
+
+  <script type="module" src="scene.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

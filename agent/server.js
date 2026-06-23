@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { SYSTEM_PROMPT } from "./systemPrompt.js";
 import { mockParse } from "./mockParser.js";
 import { MODELS } from "./models.js";
+import { lookupModelMetadata, getAllModels, fabricStatus } from "./fabric.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -12,12 +13,14 @@ app.use(express.json());
 
 // Serve the voice frontend so everything runs from one origin (mic needs https/localhost).
 app.use(express.static(path.join(__dirname, "..", "voice")));
+// Serve 3D model files (.glb) so the hologram scene can load them.
+app.use("/assets", express.static(path.join(__dirname, "..", "models")));
 
 const PORT = process.env.PORT || 3000;
 const FOUNDRY_READY = !!(process.env.FOUNDRY_ENDPOINT && process.env.FOUNDRY_API_KEY);
 const TTS_READY = !!(process.env.AZURE_SPEECH_KEY && process.env.AZURE_SPEECH_REGION);
 
-console.log(`[clipvis-agent] Foundry: ${FOUNDRY_READY ? "LIVE" : "MOCK"} | TTS: ${TTS_READY ? "Azure" : "browser fallback"}`);
+console.log(`[clipvis-agent] Foundry: ${FOUNDRY_READY ? "LIVE" : "MOCK"} | Data: ${fabricStatus()} | TTS: ${TTS_READY ? "Azure" : "browser fallback"}`);
 
 // --- Demo response cache (step 11): exact-match scripted commands skip the model call ---
 const DEMO_CACHE = {
@@ -52,6 +55,30 @@ async function callFoundry(userText, currentModel) {
   return JSON.parse(data.choices[0].message.content);
 }
 
+// --- Build spec/compare narration from real data (Fabric or mock) ---
+async function enrichWithData(result, userText) {
+  const t = (userText || "").toLowerCase();
+  if (result.intent === "lookup_spec" && result.model) {
+    const m = await lookupModelMetadata(result.model);
+    if (m) {
+      if (t.includes("weigh") || t.includes("weight") || t.includes("heavy")) {
+        result.narration = `It weighs ${m.weight}.`;
+      } else if (t.includes("cost") || t.includes("price") || t.includes("much")) {
+        result.narration = `It costs ${m.price}.`;
+      } else {
+        result.narration = `${m.display}: ${m.blurb}`;
+      }
+    }
+  } else if (result.intent === "compare" && result.model && result.compare_to) {
+    const a = await lookupModelMetadata(result.model);
+    const b = await lookupModelMetadata(result.compare_to);
+    if (a && b && a.weight !== "n/a" && b.weight !== "n/a") {
+      result.narration = `${a.display} is ${a.weight}, ${b.display} is ${b.weight}.`;
+    }
+  }
+  return result;
+}
+
 // --- POST /agent : voice text -> intent JSON (steps 5-7) ---
 app.post("/agent", async (req, res) => {
   const { user_text, current_model } = req.body || {};
@@ -59,11 +86,16 @@ app.post("/agent", async (req, res) => {
     const cached = fromCache(user_text);
     if (cached) return res.json({ ...cached, _source: "cache" });
 
+    let result;
     if (FOUNDRY_READY) {
-      const result = await callFoundry(user_text, current_model);
-      return res.json({ ...result, _source: "foundry" });
+      result = await callFoundry(user_text, current_model);
+      result._source = "foundry";
+    } else {
+      result = mockParse(user_text, current_model);
+      result._source = "mock";
     }
-    return res.json({ ...mockParse(user_text, current_model), _source: "mock" });
+    result = await enrichWithData(result, user_text);
+    return res.json(result);
   } catch (err) {
     console.error("[/agent] error:", err.message);
     // Never crash the demo — fall back to mock, then to unknown.
@@ -78,8 +110,8 @@ app.post("/agent", async (req, res) => {
   }
 });
 
-// --- GET /models : metadata (mock Fabric) ---
-app.get("/models", (_req, res) => res.json(MODELS));
+// --- GET /models : metadata (Fabric or mock) ---
+app.get("/models", async (_req, res) => res.json(await getAllModels()));
 
 // --- POST /tts : narration text -> audio (step 9). Returns 204 if not configured (browser TTS fallback). ---
 app.post("/tts", async (req, res) => {

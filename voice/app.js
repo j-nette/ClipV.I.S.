@@ -6,6 +6,7 @@ const els = {
   status: document.getElementById("status"),
   heard: document.getElementById("heard"),
   output: document.getElementById("output"),
+  narration: document.getElementById("narration"),
 };
 
 // Last model shown on screen — context for "what does it weigh" / "compare".
@@ -33,6 +34,7 @@ async function handleCommand(userText) {
     });
     const data = await res.json();
     els.output.textContent = JSON.stringify(data, null, 2);
+    if (els.narration) els.narration.textContent = data.narration || "";
 
     if (data.model) currentModel = data.model;
 
@@ -124,6 +126,8 @@ const HOTKEYS = {
   "1": "Clippy, show me the Surface Pro 11",
   "2": "What does it weigh?",
   "3": "Compare to the Surface Pro 10",
+  "4": "Clippy, show me the Xbox controller",
+  "5": "Clippy, bring up Building 7",
 };
 window.addEventListener("keydown", (e) => {
   if (HOTKEYS[e.key]) handleCommand(HOTKEYS[e.key]);
