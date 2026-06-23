@@ -4,8 +4,10 @@ import { StandaloneScene } from './consumers/standaloneScene';
 import { startCamera, CameraError } from './camera';
 import { HandTracker } from './handTracker';
 import { Overlay } from './overlay';
-import { detect } from './gestureDetector';
+import { detectHands } from './gestureDetector';
+import type { HandObservation, GestureState } from './gestureDetector';
 import { GestureController } from './gestureController';
+import type { Mode } from './gestureController';
 import type { Consumer } from './types';
 
 /**
@@ -67,14 +69,16 @@ async function startHandTracking(
 
     const overlay = overlayCanvas ? new Overlay(overlayCanvas) : null;
 
-    // Phase 3: feed detector frames through the controller, which smooths,
-    // debounces, and emits stable gesture events onto the bus → the active
-    // consumer (StandaloneScene) highlights/grabs/drags in response.
+    // Feed per-hand observations through the controller, which applies pinch
+    // hysteresis + smoothing and emits manipulation events onto the bus:
+    //   1 pinch  → grab (translate + roll-rotate)
+    //   2 pinch  → scale
+    //   point    → highlight
     const controller = new GestureController();
     tracker.onResults((frame) => {
-      const state = detect(frame.hands);
-      overlay?.draw(frame, state);
-      controller.update(state);
+      const hands = detectHands(frame.hands, frame.labels);
+      overlay?.draw(frame, toTint(hands, controller.state));
+      controller.update(hands);
       updateStateBadge(stateEl, controller.state);
     });
 
@@ -91,10 +95,13 @@ async function startHandTracking(
 }
 
 /** Reflect the controller's stable gesture mode on the centered HUD badge. */
-function updateStateBadge(el: HTMLElement | null, mode: 'idle' | 'point' | 'pinch'): void {
+function updateStateBadge(el: HTMLElement | null, mode: Mode): void {
   if (!el) return;
-  if (mode === 'pinch') {
-    el.textContent = 'PINCH';
+  if (mode === 'grab') {
+    el.textContent = 'GRAB';
+    el.className = 'pinch';
+  } else if (mode === 'scale') {
+    el.textContent = 'SCALE';
     el.className = 'pinch';
   } else if (mode === 'point') {
     el.textContent = 'POINT';
@@ -103,6 +110,18 @@ function updateStateBadge(el: HTMLElement | null, mode: 'idle' | 'point' | 'pinc
     el.textContent = 'IDLE';
     el.className = '';
   }
+}
+
+/** Build an overlay tint state from the hands + controller mode. */
+function toTint(hands: HandObservation[], mode: Mode): GestureState {
+  const active = mode === 'grab' || mode === 'scale';
+  const cursor = hands[0]?.anchor ?? hands[0]?.cursor ?? null;
+  return {
+    point: mode === 'point',
+    pinch: active,
+    cursor,
+    pinchRatio: hands[0]?.pinchRatio ?? 1,
+  };
 }
 
 /** Placeholder until Phase 5 — keeps the consumer switch type-safe. */

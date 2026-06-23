@@ -1,11 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { GestureController } from '../src/gestureController';
-import type { GestureState } from '../src/gestureDetector';
+import type { HandObservation } from '../src/gestureDetector';
 import type { GestureEvent } from '../src/types';
 
-/** Build a detector-style state; cursor present by default (hand visible). */
-function st(partial: Partial<GestureState> = {}): GestureState {
-  return { point: false, pinch: false, cursor: { x: 0, y: 0 }, pinchRatio: 1, ...partial };
+/** Build a hand observation; not pinching, not pointing, centered, by default. */
+function hand(partial: Partial<HandObservation> = {}): HandObservation {
+  return {
+    label: 'Right',
+    point: false,
+    pinch: false,
+    pinchRatio: 1,
+    cursor: { x: 0, y: 0 },
+    anchor: { x: 0, y: 0 },
+    roll: 0,
+    ...partial,
+  };
 }
 
 function makeController() {
@@ -16,65 +25,97 @@ function makeController() {
 
 const types = (events: GestureEvent[]) => events.map((e) => e.type);
 
-describe('GestureController', () => {
-  it('debounces point: requires N consecutive frames to enter', () => {
-    const { controller, events } = makeController(); // debounce = 3
-    controller.update(st({ point: true }));
-    controller.update(st({ point: true }));
-    expect(events).toHaveLength(0); // not yet confirmed
-    controller.update(st({ point: true }));
+describe('GestureController (manipulation)', () => {
+  it('one pinching hand enters grab and emits pinch_start then pinch_move', () => {
+    const { controller, events } = makeController();
+    controller.update([hand({ pinchRatio: 0.2, anchor: { x: 0.1, y: 0.1 } })]);
+    controller.update([hand({ pinchRatio: 0.2, anchor: { x: 0.2, y: 0.2 } })]);
+    expect(controller.state).toBe('grab');
+    expect(types(events)).toEqual(['pinch_start', 'pinch_move']);
+  });
+
+  it('twisting the hand while grabbing emits a roll rotation', () => {
+    const { controller, events } = makeController();
+    controller.update([hand({ pinchRatio: 0.2, roll: 0 })]);
+    events.length = 0;
+    controller.update([hand({ pinchRatio: 0.2, roll: 0.2 })]);
+    const rot = events.find((e) => e.type === 'rotate');
+    expect(rot).toBeDefined();
+    if (rot && rot.type === 'rotate') {
+      expect(rot.dz).toBeCloseTo(0.2, 5);
+      expect(rot.dx).toBe(0);
+      expect(rot.dy).toBe(0);
+    }
+  });
+
+  it('does not emit rotate for sub-deadzone twist', () => {
+    const { controller, events } = makeController();
+    controller.update([hand({ pinchRatio: 0.2, roll: 0 })]);
+    events.length = 0;
+    controller.update([hand({ pinchRatio: 0.2, roll: 0.005 })]); // below 0.01 deadzone
+    expect(events.some((e) => e.type === 'rotate')).toBe(false);
+  });
+
+  it('two pinching hands enter scale and zoom in as they move apart', () => {
+    const { controller, events } = makeController();
+    const left = (x: number) => hand({ label: 'Left', pinchRatio: 0.2, anchor: { x, y: 0 } });
+    const right = (x: number) => hand({ label: 'Right', pinchRatio: 0.2, anchor: { x, y: 0 } });
+    controller.update([left(-0.1), right(0.1)]); // dist 0.2
+    controller.update([left(-0.15), right(0.15)]); // dist 0.3 → apart → zoom in
+    expect(controller.state).toBe('scale');
+    const zoom = events.find((e) => e.type === 'zoom');
+    expect(zoom).toBeDefined();
+    if (zoom && zoom.type === 'zoom') expect(zoom.delta).toBeGreaterThan(0);
+  });
+
+  it('moving hands together zooms out', () => {
+    const { controller, events } = makeController();
+    const left = (x: number) => hand({ label: 'Left', pinchRatio: 0.2, anchor: { x, y: 0 } });
+    const right = (x: number) => hand({ label: 'Right', pinchRatio: 0.2, anchor: { x, y: 0 } });
+    controller.update([left(-0.2), right(0.2)]); // dist 0.4
+    events.length = 0;
+    controller.update([left(-0.1), right(0.1)]); // dist 0.2 → together → zoom out
+    const zoom = events.find((e) => e.type === 'zoom');
+    if (zoom && zoom.type === 'zoom') expect(zoom.delta).toBeLessThan(0);
+  });
+
+  it('grab → scale transition ends the grab before scaling', () => {
+    const { controller, events } = makeController();
+    controller.update([hand({ label: 'Right', pinchRatio: 0.2 })]); // grab
+    events.length = 0;
+    controller.update([
+      hand({ label: 'Right', pinchRatio: 0.2, anchor: { x: 0.1, y: 0 } }),
+      hand({ label: 'Left', pinchRatio: 0.2, anchor: { x: -0.1, y: 0 } }),
+    ]);
+    expect(types(events)).toContain('pinch_end');
+    expect(controller.state).toBe('scale');
+  });
+
+  it('applies pinch hysteresis per hand', () => {
+    const { controller } = makeController(); // on 0.35 / off 0.5
+    controller.update([hand({ pinchRatio: 0.4 })]); // in band → not pinching
+    expect(controller.state).toBe('idle');
+    controller.update([hand({ pinchRatio: 0.3 })]); // below on → grab
+    expect(controller.state).toBe('grab');
+    controller.update([hand({ pinchRatio: 0.45 })]); // in band → still grabbing
+    expect(controller.state).toBe('grab');
+    controller.update([hand({ pinchRatio: 0.6 })]); // above off → release
+    expect(controller.state).toBe('idle');
+  });
+
+  it('emits point when a single hand points', () => {
+    const { controller, events } = makeController();
+    controller.update([hand({ point: true, cursor: { x: 0.3, y: 0.4 } })]);
+    expect(controller.state).toBe('point');
     expect(types(events)).toEqual(['point']);
-    expect(controller.state).toBe('point');
   });
 
-  it('emits point_end after N frames without point', () => {
+  it('losing all hands ends an active grab', () => {
     const { controller, events } = makeController();
-    for (let i = 0; i < 3; i++) controller.update(st({ point: true }));
+    controller.update([hand({ pinchRatio: 0.2 })]);
     events.length = 0;
-    // Within the debounce-off window it stays in point mode (continuous moves)…
-    controller.update(st({ point: false }));
-    controller.update(st({ point: false }));
-    expect(controller.state).toBe('point');
-    expect(types(events)).toEqual(['point', 'point']);
-    // …then the Nth off-frame confirms release.
-    controller.update(st({ point: false }));
-    expect(types(events)).toEqual(['point', 'point', 'point_end']);
-    expect(controller.state).toBe('idle');
-  });
-
-  it('applies hysteresis to pinch (enter < pinchOn, exit > pinchOff)', () => {
-    const { controller, events } = makeController(); // on 0.35 / off 0.5
-    controller.update(st({ pinchRatio: 0.4 })); // in the band → no pinch
-    expect(controller.state).toBe('idle');
-    controller.update(st({ pinchRatio: 0.3 })); // below on → pinch
-    expect(controller.state).toBe('pinch');
-    controller.update(st({ pinchRatio: 0.45 })); // back in band → still pinch
-    expect(controller.state).toBe('pinch');
-    controller.update(st({ pinchRatio: 0.6 })); // above off → release
-    expect(controller.state).toBe('idle');
-    expect(types(events)).toEqual(['pinch_start', 'pinch_move', 'pinch_end']);
-  });
-
-  it('pinch wins over point', () => {
-    const { controller } = makeController();
-    controller.update(st({ point: true, pinchRatio: 0.2 }));
-    expect(controller.state).toBe('pinch');
-  });
-
-  it('losing the hand ends an active pinch', () => {
-    const { controller, events } = makeController();
-    controller.update(st({ pinchRatio: 0.2 }));
-    events.length = 0;
-    controller.update(st({ cursor: null })); // hand gone
+    controller.update([]); // no hands
     expect(types(events)).toEqual(['pinch_end']);
     expect(controller.state).toBe('idle');
-  });
-
-  it('emits pinch_move while held', () => {
-    const { controller, events } = makeController();
-    controller.update(st({ pinchRatio: 0.2, cursor: { x: 0.1, y: 0.1 } }));
-    controller.update(st({ pinchRatio: 0.2, cursor: { x: 0.2, y: 0.2 } }));
-    controller.update(st({ pinchRatio: 0.2, cursor: { x: 0.3, y: 0.3 } }));
-    expect(types(events)).toEqual(['pinch_start', 'pinch_move', 'pinch_move']);
   });
 });

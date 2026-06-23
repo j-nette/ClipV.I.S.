@@ -25,6 +25,8 @@ export type HandsListener = (result: HandTrackerFrame) => void;
 export interface HandTrackerFrame {
   /** Landmarks per detected hand (empty when no hand is visible). */
   hands: HandLandmarks[];
+  /** Handedness label per hand ('Left' | 'Right'), parallel to `hands`. */
+  labels: string[];
   /** Source video timestamp in ms. */
   timestampMs: number;
 }
@@ -100,8 +102,11 @@ export class HandTracker {
     const hands: HandLandmarks[] = result.landmarks.map((hand) =>
       hand.map((p) => ({ x: p.x, y: p.y, z: p.z })),
     );
+    const labels: string[] = result.handedness.map(
+      (h, i) => h[0]?.categoryName ?? `hand${i}`,
+    );
 
-    const frame: HandTrackerFrame = { hands, timestampMs };
+    const frame: HandTrackerFrame = { hands, labels, timestampMs };
     for (const listener of this.listeners) listener(frame);
   };
 }

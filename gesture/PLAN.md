@@ -10,11 +10,10 @@
 
 ### MVP gestures
 - **Point** — index fingertip → a 3D ray; highlight whatever model it intersects.
-- **Pinch** — thumb+index together → grab and drag a model.
-- **Rotate** — turn the focused model (yaw + pitch).
-- **Zoom** — scale the focused model in / out.
+- **Grab (1-hand pinch)** — pinch and move to **translate** the object; **twist the wrist** to **rotate** it (roll).
+- **Scale (2-hand pinch)** — pinch the same object with both hands; move them apart/together to **enlarge/shrink**.
 
-Point + pinch are the core two (per README). Rotate + zoom are manipulation gestures on whatever model is currently focused (highlighted or grabbed). All four ride the same event bus and have keyboard fallbacks, so adding them costs nothing if CV is cut.
+Point is the lightweight highlight. Grab and scale are the pinch-based manipulation model: one pinching hand translates + rotates, two pinching hands scale. All ride the same event bus and have keyboard fallbacks.
 
 ### Decoupling goals (new)
 - **Standalone-first.** Gesture ships with its own self-contained laptop-screen scene (a Three.js scene with a few draggable/highlightable boxes) so the full pipeline — camera → detect → smooth → event → visual feedback — is testable with **zero** dependency on `hologram/`.

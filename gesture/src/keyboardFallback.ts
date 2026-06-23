@@ -12,6 +12,7 @@ import type { NDC } from './types';
  *   Arrow keys    → move the cursor (nudges pinch_move while grabbed)
  *   Q / E         → rotate yaw (left / right)
  *   R / F         → rotate pitch (up / down)
+ *   C / V         → rotate roll (twist)
  *   Z / X         → zoom in / out  (mouse wheel also zooms)
  *
  * The cursor is a virtual pointer in NDC space, since there's no fingertip yet.
@@ -59,16 +60,22 @@ export class KeyboardFallback {
         this.moveCursor(0, -this.step);
         break;
       case 'q':
-        gestureBus.emit({ type: 'rotate', dx: -this.rotStep, dy: 0 });
+        gestureBus.emit({ type: 'rotate', dx: -this.rotStep, dy: 0, dz: 0 });
         break;
       case 'e':
-        gestureBus.emit({ type: 'rotate', dx: this.rotStep, dy: 0 });
+        gestureBus.emit({ type: 'rotate', dx: this.rotStep, dy: 0, dz: 0 });
         break;
       case 'r':
-        gestureBus.emit({ type: 'rotate', dx: 0, dy: -this.rotStep });
+        gestureBus.emit({ type: 'rotate', dx: 0, dy: -this.rotStep, dz: 0 });
         break;
       case 'f':
-        gestureBus.emit({ type: 'rotate', dx: 0, dy: this.rotStep });
+        gestureBus.emit({ type: 'rotate', dx: 0, dy: this.rotStep, dz: 0 });
+        break;
+      case 'c':
+        gestureBus.emit({ type: 'rotate', dx: 0, dy: 0, dz: -this.rotStep });
+        break;
+      case 'v':
+        gestureBus.emit({ type: 'rotate', dx: 0, dy: 0, dz: this.rotStep });
         break;
       case 'z':
         gestureBus.emit({ type: 'zoom', delta: this.zoomStep });
@@ -80,7 +87,7 @@ export class KeyboardFallback {
         return;
     }
     if (
-      ['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'p', 'g', 'q', 'e', 'r', 'f', 'z', 'x'].includes(
+      ['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'p', 'g', 'q', 'e', 'r', 'f', 'c', 'v', 'z', 'x'].includes(
         e.key.toLowerCase(),
       )
     ) {

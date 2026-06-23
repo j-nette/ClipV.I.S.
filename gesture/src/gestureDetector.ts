@@ -73,6 +73,57 @@ export function toNDC(p: Landmark): NDC {
   return { x: (1 - p.x) * 2 - 1, y: (1 - p.y) * 2 - 1 };
 }
 
+/**
+ * Per-hand observation used by the manipulation controller. Adds a grab anchor
+ * (thumb–index midpoint) and an in-plane roll angle on top of the basic
+ * point/pinch state, plus the handedness label so per-hand state is stable.
+ */
+export interface HandObservation {
+  label: string;
+  point: boolean;
+  pinch: boolean;
+  pinchRatio: number;
+  /** Index fingertip in NDC (pointer / highlight position). */
+  cursor: NDC;
+  /** Thumb–index midpoint in NDC — the grab anchor used while pinching. */
+  anchor: NDC;
+  /** In-plane hand roll in radians (wrist → middle-MCP angle). */
+  roll: number;
+}
+
+/** Build observations for every hand in a frame, keyed by handedness label. */
+export function detectHands(hands: HandLandmarks[], labels: string[] = []): HandObservation[] {
+  const out: HandObservation[] = [];
+  for (let i = 0; i < hands.length; i++) {
+    const hand = hands[i];
+    if (!hand || hand.length < 21) continue;
+    out.push(observeHand(hand, labels[i] ?? `hand${i}`));
+  }
+  return out;
+}
+
+/** Observe a single 21-point hand. */
+export function observeHand(hand: HandLandmarks, label: string): HandObservation {
+  const base = detectHand(hand);
+  const thumb = toNDC(hand[LM.THUMB_TIP]);
+  const index = toNDC(hand[LM.INDEX_TIP]);
+  const anchor = { x: (thumb.x + index.x) / 2, y: (thumb.y + index.y) / 2 };
+
+  const wrist = toNDC(hand[LM.WRIST]);
+  const mid = toNDC(hand[LM.MIDDLE_MCP]);
+  const roll = Math.atan2(mid.y - wrist.y, mid.x - wrist.x);
+
+  return {
+    label,
+    point: base.point,
+    pinch: base.pinch,
+    pinchRatio: base.pinchRatio,
+    cursor: base.cursor ?? index,
+    anchor,
+    roll,
+  };
+}
+
 function dist(a: Landmark, b: Landmark): number {
   const dx = a.x - b.x;
   const dy = a.y - b.y;

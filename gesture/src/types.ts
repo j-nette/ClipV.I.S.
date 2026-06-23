@@ -34,8 +34,8 @@ export type GestureEvent =
   | { type: 'pinch_start'; ndc: NDC }
   | { type: 'pinch_move'; ndc: NDC }
   | { type: 'pinch_end' }
-  /** Incremental rotation of the focused object, in radians. dx = yaw, dy = pitch. */
-  | { type: 'rotate'; dx: number; dy: number }
+  /** Incremental rotation of the focused object, in radians. dx = yaw, dy = pitch, dz = roll. */
+  | { type: 'rotate'; dx: number; dy: number; dz: number }
   /** Incremental zoom of the focused object. Signed scalar: >0 = zoom in, <0 = zoom out. */
   | { type: 'zoom'; delta: number };
 

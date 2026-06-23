@@ -92,7 +92,7 @@ export class StandaloneScene implements Consumer {
         this.endDrag();
         break;
       case 'rotate':
-        this.applyRotate(e.dx, e.dy);
+        this.applyRotate(e.dx, e.dy, e.dz);
         break;
       case 'zoom':
         this.applyZoom(e.delta);
@@ -143,12 +143,13 @@ export class StandaloneScene implements Consumer {
     this.grabbed = null;
   }
 
-  /** Rotate the focused object (or all boxes if none) by yaw/pitch deltas. */
-  private applyRotate(dx: number, dy: number): void {
+  /** Rotate the focused object (or all boxes if none) by yaw/pitch/roll deltas. */
+  private applyRotate(dx: number, dy: number, dz: number): void {
     const targets = this.focused ? [this.focused] : this.boxes;
     for (const t of targets) {
       t.rotation.y += dx;
       t.rotation.x += dy;
+      t.rotation.z += dz;
     }
   }
 

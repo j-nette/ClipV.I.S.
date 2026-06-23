@@ -1,30 +1,36 @@
 import { gestureBus } from './eventBus';
-import type { GestureState } from './gestureDetector';
+import type { HandObservation } from './gestureDetector';
 import type { GestureEvent, NDC } from './types';
 
 /**
- * Turns the per-frame (raw, jittery) detector output into stable, debounced
- * gesture *events* on the bus. This is where "reliably triggering" is won:
+ * Turns per-hand observations into stable manipulation events on the bus:
  *
- *  - Hysteresis on the pinch ratio (separate enter/exit thresholds) so pinch
- *    doesn't flicker around the boundary.
- *  - Debounce on point (N consecutive frames to enter/exit) to reject blips.
- *  - EMA smoothing on the cursor so the highlight ray doesn't twitch.
- *  - A 3-state machine (idle / point / pinch) where pinch always wins.
+ *  - **1 pinching hand → grab:** translate the object to follow the pinch anchor
+ *    (pinch_start / pinch_move / pinch_end) AND rotate it by the hand's in-plane
+ *    twist (rotate dz = roll delta).
+ *  - **2 pinching hands → scale:** the object grows/shrinks as the two pinch
+ *    anchors move apart/together (zoom delta from their distance ratio).
+ *  - **0 pinching, 1 pointing → point:** highlight (point / point_end).
  *
- * The detector stays pure; all timing/state lives here.
+ * The detector stays pure; all timing/state (pinch hysteresis, smoothing,
+ * clamping) lives here. Per-hand pinch state is keyed by handedness label so
+ * frame-to-frame hand ordering doesn't corrupt it.
  */
-export type Mode = 'idle' | 'point' | 'pinch';
+export type Mode = 'idle' | 'point' | 'grab' | 'scale';
 
 export interface ControllerOptions {
   /** Pinch enters when ratio drops below this. */
   pinchOn?: number;
   /** Pinch exits when ratio rises above this (must be > pinchOn). */
   pinchOff?: number;
-  /** Consecutive frames required to enter/exit the point state. */
-  debounceFrames?: number;
-  /** EMA smoothing factor for the cursor, 0..1 (higher = more responsive). */
+  /** EMA smoothing factor for the grab anchor, 0..1 (higher = more responsive). */
   smoothing?: number;
+  /** Min |roll delta| (radians) before a rotate is emitted — kills jitter. */
+  rotateDeadzone?: number;
+  /** Max |roll delta| (radians) per frame — kills wrap/teleport spikes. */
+  rotateClamp?: number;
+  /** Max |zoom delta| per frame. */
+  zoomClamp?: number;
   /** Where to emit events. Defaults to the shared gestureBus. */
   emit?: (e: GestureEvent) => void;
 }
@@ -32,21 +38,30 @@ export interface ControllerOptions {
 export class GestureController {
   private readonly pinchOn: number;
   private readonly pinchOff: number;
-  private readonly debounce: number;
   private readonly alpha: number;
+  private readonly rotateDeadzone: number;
+  private readonly rotateClamp: number;
+  private readonly zoomClamp: number;
   private readonly emit: (e: GestureEvent) => void;
 
   private mode: Mode = 'idle';
-  private rawPinch = false;
-  private pointOn = 0;
-  private pointOff = 0;
+  /** Hysteretic pinch state per hand label. */
+  private readonly pinchState = new Map<string, boolean>();
+
+  // grab session
+  private activeLabel: string | null = null;
+  private prevRoll = 0;
   private smoothed: NDC | null = null;
+  // scale session
+  private prevDist = 0;
 
   constructor(opts: ControllerOptions = {}) {
     this.pinchOn = opts.pinchOn ?? 0.35;
     this.pinchOff = opts.pinchOff ?? 0.5;
-    this.debounce = opts.debounceFrames ?? 3;
     this.alpha = opts.smoothing ?? 0.5;
+    this.rotateDeadzone = opts.rotateDeadzone ?? 0.01;
+    this.rotateClamp = opts.rotateClamp ?? 0.3;
+    this.zoomClamp = opts.zoomClamp ?? 0.1;
     this.emit = opts.emit ?? ((e) => gestureBus.emit(e));
   }
 
@@ -55,18 +70,30 @@ export class GestureController {
     return this.mode;
   }
 
-  /** Feed one detector frame; emits transition/move events as needed. */
-  update(state: GestureState): void {
-    const target = this.computeTarget(state);
-    const active = target !== 'idle';
-    const cursor = this.smoothCursor(state.cursor, active);
+  /** Feed one frame of per-hand observations; emits transition/move events. */
+  update(hands: HandObservation[]): void {
+    // Per-hand pinch hysteresis.
+    const pinching: HandObservation[] = [];
+    const seen = new Set<string>();
+    for (const h of hands) {
+      seen.add(h.label);
+      if (this.applyHysteresis(h)) pinching.push(h);
+    }
+    // Forget hands that disappeared.
+    for (const label of [...this.pinchState.keys()]) {
+      if (!seen.has(label)) this.pinchState.delete(label);
+    }
+
+    const pointing = hands.find((h) => h.point && !this.pinchState.get(h.label)) ?? null;
+    const target: Mode =
+      pinching.length >= 2 ? 'scale' : pinching.length === 1 ? 'grab' : pointing ? 'point' : 'idle';
 
     if (target !== this.mode) {
       this.exit(this.mode);
       this.mode = target;
-      this.enter(target, cursor);
+      this.enter(target, pinching, pointing);
     } else {
-      this.moveWithin(this.mode, cursor);
+      this.within(target, pinching, pointing);
     }
   }
 
@@ -74,77 +101,88 @@ export class GestureController {
   reset(): void {
     this.exit(this.mode);
     this.mode = 'idle';
-    this.rawPinch = false;
-    this.pointOn = 0;
-    this.pointOff = 0;
+    this.pinchState.clear();
+    this.activeLabel = null;
     this.smoothed = null;
   }
 
-  private computeTarget(state: GestureState): Mode {
-    const hasHand = state.cursor !== null;
-    if (!hasHand) {
-      this.rawPinch = false;
-      this.pointOn = 0;
-      this.pointOff = this.debounce;
-      return 'idle';
+  /** Updates and returns the hysteretic pinch state for a hand. */
+  private applyHysteresis(h: HandObservation): boolean {
+    const was = this.pinchState.get(h.label) ?? false;
+    let now = was;
+    if (was) {
+      if (h.pinchRatio > this.pinchOff) now = false;
+    } else if (h.pinchRatio < this.pinchOn) {
+      now = true;
     }
-
-    // Pinch hysteresis.
-    if (this.rawPinch) {
-      if (state.pinchRatio > this.pinchOff) this.rawPinch = false;
-    } else if (state.pinchRatio < this.pinchOn) {
-      this.rawPinch = true;
-    }
-    if (this.rawPinch) {
-      this.pointOn = 0;
-      this.pointOff = this.debounce;
-      return 'pinch';
-    }
-
-    // Point debounce: need `debounce` consecutive on to enter, off to exit.
-    if (state.point) {
-      this.pointOn = Math.min(this.debounce, this.pointOn + 1);
-      this.pointOff = 0;
-    } else {
-      this.pointOff = Math.min(this.debounce, this.pointOff + 1);
-      this.pointOn = 0;
-    }
-    if (this.mode === 'point') {
-      return this.pointOff >= this.debounce ? 'idle' : 'point';
-    }
-    return this.pointOn >= this.debounce ? 'point' : 'idle';
+    this.pinchState.set(h.label, now);
+    return now;
   }
 
-  private smoothCursor(c: NDC | null, active: boolean): NDC | null {
-    if (!c) {
-      this.smoothed = null;
-      return null;
+  private enter(mode: Mode, pinching: HandObservation[], pointing: HandObservation | null): void {
+    if (mode === 'grab') {
+      const h = pinching[0];
+      this.activeLabel = h.label;
+      this.prevRoll = h.roll;
+      this.smoothed = { ...h.anchor };
+      this.emit({ type: 'pinch_start', ndc: this.smoothed });
+    } else if (mode === 'scale') {
+      this.prevDist = anchorDist(pinching[0], pinching[1]);
+    } else if (mode === 'point' && pointing) {
+      this.emit({ type: 'point', ndc: pointing.cursor });
     }
-    if (!active || !this.smoothed) {
-      this.smoothed = { x: c.x, y: c.y }; // snap on (re)entry
-      return this.smoothed;
-    }
-    this.smoothed = {
-      x: this.alpha * c.x + (1 - this.alpha) * this.smoothed.x,
-      y: this.alpha * c.y + (1 - this.alpha) * this.smoothed.y,
-    };
-    return this.smoothed;
   }
 
-  private enter(mode: Mode, cursor: NDC | null): void {
-    if (!cursor) return;
-    if (mode === 'pinch') this.emit({ type: 'pinch_start', ndc: cursor });
-    else if (mode === 'point') this.emit({ type: 'point', ndc: cursor });
-  }
-
-  private moveWithin(mode: Mode, cursor: NDC | null): void {
-    if (!cursor) return;
-    if (mode === 'pinch') this.emit({ type: 'pinch_move', ndc: cursor });
-    else if (mode === 'point') this.emit({ type: 'point', ndc: cursor });
+  private within(mode: Mode, pinching: HandObservation[], pointing: HandObservation | null): void {
+    if (mode === 'grab') {
+      const h = pinching.find((p) => p.label === this.activeLabel) ?? pinching[0];
+      // Translate: smooth the anchor and follow it.
+      this.smoothed = this.smoothed
+        ? {
+            x: this.alpha * h.anchor.x + (1 - this.alpha) * this.smoothed.x,
+            y: this.alpha * h.anchor.y + (1 - this.alpha) * this.smoothed.y,
+          }
+        : { ...h.anchor };
+      this.emit({ type: 'pinch_move', ndc: this.smoothed });
+      // Rotate: in-plane wrist twist → roll, with deadzone + clamp.
+      let dz = angleDelta(this.prevRoll, h.roll);
+      this.prevRoll = h.roll;
+      if (Math.abs(dz) >= this.rotateDeadzone) {
+        dz = clamp(dz, -this.rotateClamp, this.rotateClamp);
+        this.emit({ type: 'rotate', dx: 0, dy: 0, dz });
+      }
+    } else if (mode === 'scale') {
+      const d = anchorDist(pinching[0], pinching[1]);
+      if (this.prevDist > 1e-4) {
+        const delta = clamp(d / this.prevDist - 1, -this.zoomClamp, this.zoomClamp);
+        if (delta !== 0) this.emit({ type: 'zoom', delta });
+      }
+      this.prevDist = d;
+    } else if (mode === 'point' && pointing) {
+      this.emit({ type: 'point', ndc: pointing.cursor });
+    }
   }
 
   private exit(mode: Mode): void {
-    if (mode === 'pinch') this.emit({ type: 'pinch_end' });
-    else if (mode === 'point') this.emit({ type: 'point_end' });
+    if (mode === 'grab') {
+      this.activeLabel = null;
+      this.smoothed = null;
+      this.emit({ type: 'pinch_end' });
+    } else if (mode === 'point') {
+      this.emit({ type: 'point_end' });
+    }
   }
+}
+
+function anchorDist(a: HandObservation, b: HandObservation): number {
+  return Math.hypot(a.anchor.x - b.anchor.x, a.anchor.y - b.anchor.y);
+}
+
+/** Smallest signed angle from `prev` to `curr`, handling ±π wrap. */
+function angleDelta(prev: number, curr: number): number {
+  return Math.atan2(Math.sin(curr - prev), Math.cos(curr - prev));
+}
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, v));
 }
