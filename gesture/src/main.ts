@@ -4,6 +4,7 @@ import { StandaloneScene } from './consumers/standaloneScene';
 import { startCamera, CameraError } from './camera';
 import { HandTracker } from './handTracker';
 import { Overlay } from './overlay';
+import { detect } from './gestureDetector';
 import type { Consumer } from './types';
 
 /**
@@ -62,15 +63,20 @@ async function startHandTracking(
     const { video } = await startCamera({ width: 640, height: 480 });
 
     const overlay = overlayCanvas ? new Overlay(overlayCanvas) : null;
-    let lastLogged = 0;
+
+    // Phase 2: detect point/pinch from landmarks and log edge transitions.
+    // (Phase 3 will smooth these and emit them onto the gesture bus.)
+    let wasPinching = false;
+    let wasPointing = false;
     tracker.onResults((frame) => {
       overlay?.draw(frame);
-      // Throttled landmark log so the standalone test is observable.
-      const now = performance.now();
-      if (frame.hands.length && now - lastLogged > 1000) {
-        lastLogged = now;
-        console.log(`[gesture] tracking ${frame.hands.length} hand(s), 21 landmarks each`);
-      }
+
+      const state = detect(frame.hands);
+      if (state.pinch && !wasPinching) console.log('PINCH START', state.cursor);
+      if (!state.pinch && wasPinching) console.log('PINCH END');
+      if (state.point && !wasPointing) console.log('POINT', state.cursor);
+      wasPinching = state.pinch;
+      wasPointing = state.point;
     });
 
     tracker.start(video);

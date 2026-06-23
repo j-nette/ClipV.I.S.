@@ -235,7 +235,7 @@ Every phase is verifiable on a plain laptop screen. `hologram/` integration is a
 |---|---|---|
 | **0 — Contract + StandaloneScene + fallback** (DONE) | `eventBus.ts` + `types.ts` + `Consumer`; `StandaloneScene` renders boxes; keyboard `P`/`G` highlight & drag a box. **No camera, no hologram.** | nothing |
 | **1 — Camera + tracking** (DONE) | `getUserMedia` → MediaPipe `HandLandmarker` → live skeleton renders in `index.html`. Assets bundled locally. Standalone test passes. | MediaPipe WASM assets |
-| **2 — Detection** | `gestureDetector` returns correct `point`/`pinch` from live landmarks; console logs `PINCH START` / `POINT`. Unit tests on recorded landmark fixtures. | Phase 1 |
+| **2 — Detection** (DONE) | `gestureDetector` returns correct `point`/`pinch` from live landmarks; console logs `PINCH START` / `POINT`. Unit tests on synthetic landmark fixtures (7 passing). | Phase 1 |
 | **3 — Smoothing + emit** | Controller debounces, smooths, emits events; **pinch-drag a real box in StandaloneScene with your hand.** Full pipeline working solo. | Phase 0 + 2 |
 | **4 — Polish** (only if time) | Overlay tint states, cursor smoothing tuned, `?debug` flag, error toasts. | Phase 3 |
 | **5 — Hologram adapter** (optional, only if hologram ready) | Write `hologramAdapter.ts`; `?consumer=hologram` drives the pyramid with the *same* events. | Phase 3 + hologram raycast hook |
