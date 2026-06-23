@@ -5,6 +5,7 @@ import { startCamera, CameraError } from './camera';
 import { HandTracker } from './handTracker';
 import { Overlay } from './overlay';
 import { detect } from './gestureDetector';
+import type { GestureState } from './gestureDetector';
 import type { Consumer } from './types';
 
 /**
@@ -16,6 +17,7 @@ async function main(): Promise<void> {
   const container = document.getElementById('scene');
   const overlayCanvas = document.getElementById('overlay') as HTMLCanvasElement | null;
   const statusEl = document.getElementById('status');
+  const stateEl = document.getElementById('gesture-state');
   if (!container) throw new Error('#scene container not found');
 
   // Consumer selection. Default is the laptop-screen StandaloneScene.
@@ -38,7 +40,7 @@ async function main(): Promise<void> {
   new KeyboardFallback().start();
 
   // Phase 1: camera + hand tracking (additive; keyboard works regardless).
-  await startHandTracking(overlayCanvas, statusEl);
+  await startHandTracking(overlayCanvas, statusEl, stateEl);
 
   console.info(
     '[gesture] Ready. Keyboard: P=point, G=pinch, arrows=move, Q/E/R/F=rotate, Z/X/wheel=zoom.',
@@ -49,6 +51,7 @@ async function main(): Promise<void> {
 async function startHandTracking(
   overlayCanvas: HTMLCanvasElement | null,
   statusEl: HTMLElement | null,
+  stateEl: HTMLElement | null,
 ): Promise<void> {
   const setStatus = (text: string) => {
     if (statusEl) statusEl.textContent = text;
@@ -64,14 +67,15 @@ async function startHandTracking(
 
     const overlay = overlayCanvas ? new Overlay(overlayCanvas) : null;
 
-    // Phase 2: detect point/pinch from landmarks and log edge transitions.
+    // Phase 2: detect point/pinch from landmarks, reflect on screen, log edges.
     // (Phase 3 will smooth these and emit them onto the gesture bus.)
     let wasPinching = false;
     let wasPointing = false;
     tracker.onResults((frame) => {
-      overlay?.draw(frame);
-
       const state = detect(frame.hands);
+      overlay?.draw(frame, state);
+      updateStateBadge(stateEl, state);
+
       if (state.pinch && !wasPinching) console.log('PINCH START', state.cursor);
       if (!state.pinch && wasPinching) console.log('PINCH END');
       if (state.point && !wasPointing) console.log('POINT', state.cursor);
@@ -88,6 +92,21 @@ async function startHandTracking(
         : 'hand tracking failed to start — keyboard fallback active';
     console.warn('[gesture]', msg, err);
     setStatus(msg);
+  }
+}
+
+/** Reflect the current gesture on the centered HUD badge. */
+function updateStateBadge(el: HTMLElement | null, state: GestureState): void {
+  if (!el) return;
+  if (state.pinch) {
+    el.textContent = 'PINCH';
+    el.className = 'pinch';
+  } else if (state.point) {
+    el.textContent = 'POINT';
+    el.className = 'point';
+  } else {
+    el.textContent = 'IDLE';
+    el.className = '';
   }
 }
 

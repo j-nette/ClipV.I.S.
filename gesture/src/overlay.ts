@@ -1,5 +1,7 @@
 import type { HandLandmarks } from './types';
 import type { HandTrackerFrame } from './handTracker';
+import type { GestureState } from './gestureDetector';
+import { LM } from './gestureDetector';
 
 /** MediaPipe hand skeleton edges (pairs of landmark indices). */
 const HAND_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
@@ -11,10 +13,15 @@ const HAND_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
   [0, 17], // palm base
 ];
 
+const COLOR_IDLE = 'rgba(34, 211, 238, 0.85)'; // cyan
+const COLOR_POINT = 'rgba(56, 189, 248, 0.95)'; // bright blue
+const COLOR_PINCH = 'rgba(34, 197, 94, 0.95)'; // green
+
 /**
- * Transparent canvas overlay that draws the live hand skeleton. Dev/debug aid —
- * default-off for the real demo (`?debug`). Mirrors X to match the selfie view
- * the user sees of their own hand.
+ * Transparent canvas overlay that draws the live hand skeleton and reflects the
+ * current gesture state: skeleton tints green on pinch / blue on point, and a
+ * cursor ring is drawn at the active fingertip. Mirrors X to match the selfie
+ * view the user sees of their own hand.
  */
 export class Overlay {
   private readonly ctx: CanvasRenderingContext2D;
@@ -32,22 +39,27 @@ export class Overlay {
     this.canvas.height = this.canvas.clientHeight * devicePixelRatio;
   };
 
-  draw(frame: HandTrackerFrame): void {
+  /** Draw the frame, optionally tinted/annotated by the detected gesture state. */
+  draw(frame: HandTrackerFrame, state?: GestureState): void {
     const { width: w, height: h } = this.canvas;
     this.ctx.clearRect(0, 0, w, h);
-    for (const hand of frame.hands) this.drawHand(hand, w, h);
+    const color = state?.pinch ? COLOR_PINCH : state?.point ? COLOR_POINT : COLOR_IDLE;
+    for (const hand of frame.hands) this.drawHand(hand, w, h, color);
+    if (frame.hands[0] && state && (state.pinch || state.point)) {
+      this.drawCursor(frame.hands[0], w, h, color, state.pinch);
+    }
   }
 
   clear(): void {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
-  private drawHand(hand: HandLandmarks, w: number, h: number): void {
+  private drawHand(hand: HandLandmarks, w: number, h: number, color: string): void {
     const px = (i: number) => (1 - hand[i].x) * w; // mirror X for selfie view
     const py = (i: number) => hand[i].y * h;
 
     // Connections.
-    this.ctx.strokeStyle = 'rgba(34, 211, 238, 0.85)';
+    this.ctx.strokeStyle = color;
     this.ctx.lineWidth = 3 * devicePixelRatio;
     this.ctx.beginPath();
     for (const [a, b] of HAND_CONNECTIONS) {
@@ -64,6 +76,27 @@ export class Overlay {
       this.ctx.arc(px(i), py(i), r, 0, Math.PI * 2);
       this.ctx.fill();
     }
+  }
+
+  /** Highlight the active fingertip: a ring at the index tip (filled on pinch). */
+  private drawCursor(
+    hand: HandLandmarks,
+    w: number,
+    h: number,
+    color: string,
+    filled: boolean,
+  ): void {
+    const tip = hand[LM.INDEX_TIP];
+    const cx = (1 - tip.x) * w;
+    const cy = tip.y * h;
+    const r = 14 * devicePixelRatio;
+    this.ctx.lineWidth = 3 * devicePixelRatio;
+    this.ctx.strokeStyle = color;
+    this.ctx.fillStyle = color;
+    this.ctx.beginPath();
+    this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    if (filled) this.ctx.fill();
+    else this.ctx.stroke();
   }
 
   dispose(): void {
