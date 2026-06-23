@@ -11,6 +11,19 @@ export interface NDC {
 }
 
 /**
+ * A single MediaPipe hand landmark. x/y are normalized image coords in [0, 1]
+ * (x left→right, y top→bottom); z is relative depth (smaller = closer).
+ */
+export interface Landmark {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/** 21 landmarks for one detected hand, in MediaPipe index order. */
+export type HandLandmarks = Landmark[];
+
+/**
  * Low-level, high-frequency interaction events. Distinct from voice/'s
  * setSceneState() model-swap channel. Emitted at up to ~30 fps once the camera
  * pipeline lands; in Phase 0 they come from the keyboard fallback.

@@ -2,3 +2,7 @@ node_modules/
 dist/
 *.local
 .DS_Store
+
+# Locally-generated MediaPipe assets (recreate with `npm run setup:assets`)
+public/mediapipe/
+public/models/
