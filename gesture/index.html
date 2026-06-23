@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ClipV.I.S. — Gesture (Phase 0)</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: #000; color: #e5e7eb;
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+      #scene { position: fixed; inset: 0; }
+      #hud {
+        position: fixed; left: 16px; bottom: 16px; z-index: 10;
+        padding: 12px 14px; border-radius: 10px;
+        background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(6px);
+        font-size: 13px; line-height: 1.5; pointer-events: none;
+      }
+      #hud b { color: #22d3ee; }
+      kbd {
+        background: #1f2937; border: 1px solid #374151; border-radius: 4px;
+        padding: 1px 6px; font-family: ui-monospace, monospace; font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="scene"></div>
+    <div id="hud">
+      <div><b>Gesture — Phase 0</b> (keyboard fallback, no camera)</div>
+      <div><kbd>P</kbd> hold = point · <kbd>G</kbd> = pinch toggle · <kbd>← ↑ ↓ →</kbd> move</div>
+      <div><kbd>Q</kbd>/<kbd>E</kbd> rotate · <kbd>R</kbd>/<kbd>F</kbd> tilt · <kbd>Z</kbd>/<kbd>X</kbd> or wheel = zoom</div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
