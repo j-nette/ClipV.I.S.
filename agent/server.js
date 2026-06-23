@@ -18,9 +18,11 @@ app.use("/assets", express.static(path.join(__dirname, "..", "models")));
 
 const PORT = process.env.PORT || 3000;
 const FOUNDRY_READY = !!(process.env.FOUNDRY_ENDPOINT && process.env.FOUNDRY_API_KEY);
+const GITHUB_READY = !!process.env.GITHUB_MODELS_TOKEN;
 const TTS_READY = !!(process.env.AZURE_SPEECH_KEY && process.env.AZURE_SPEECH_REGION);
 
-console.log(`[clipvis-agent] Foundry: ${FOUNDRY_READY ? "LIVE" : "MOCK"} | Data: ${fabricStatus()} | TTS: ${TTS_READY ? "Azure" : "browser fallback"}`);
+const LLM = FOUNDRY_READY ? "Foundry" : GITHUB_READY ? "GitHubModels" : "MOCK";
+console.log(`[clipvis-agent] LLM: ${LLM} | Data: ${fabricStatus()} | TTS: ${TTS_READY ? "Azure" : "browser fallback"}`);
 
 // --- Demo response cache (step 11): exact-match scripted commands skip the model call ---
 const DEMO_CACHE = {
@@ -35,24 +37,44 @@ function fromCache(text) {
   return DEMO_CACHE[key] || null;
 }
 
+function messages(userText, currentModel) {
+  return [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: `Current model on screen: ${currentModel || "none"}.\nCommand: ${userText}` }
+  ];
+}
+
 // --- Call Foundry (Azure OpenAI-compatible chat completions) ---
 async function callFoundry(userText, currentModel) {
   const url = `${process.env.FOUNDRY_ENDPOINT.replace(/\/$/, "")}/openai/deployments/${process.env.FOUNDRY_DEPLOYMENT}/chat/completions?api-version=2024-08-01-preview`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "api-key": process.env.FOUNDRY_API_KEY },
-    body: JSON.stringify({
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: `Current model on screen: ${currentModel || "none"}.\nCommand: ${userText}` }
-      ],
-      temperature: 0,
-      response_format: { type: "json_object" }
-    })
+    body: JSON.stringify({ messages: messages(userText, currentModel), temperature: 0, response_format: { type: "json_object" } })
   });
   if (!res.ok) throw new Error(`Foundry ${res.status}: ${await res.text()}`);
   const data = await res.json();
   return JSON.parse(data.choices[0].message.content);
+}
+
+// --- Call GitHub Models (OpenAI-compatible, free, just needs a GitHub token) ---
+async function callGitHubModels(userText, currentModel) {
+  const base = (process.env.GITHUB_MODELS_ENDPOINT || "https://models.github.ai/inference").replace(/\/$/, "");
+  const model = process.env.GITHUB_MODELS_MODEL || "openai/gpt-4o";
+  const res = await fetch(`${base}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.GITHUB_MODELS_TOKEN}` },
+    body: JSON.stringify({ model, messages: messages(userText, currentModel), temperature: 0, response_format: { type: "json_object" } })
+  });
+  if (!res.ok) throw new Error(`GitHubModels ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  return JSON.parse(data.choices[0].message.content);
+}
+
+async function callLLM(userText, currentModel) {
+  if (FOUNDRY_READY) return { ...(await callFoundry(userText, currentModel)), _source: "foundry" };
+  if (GITHUB_READY) return { ...(await callGitHubModels(userText, currentModel)), _source: "github" };
+  return { ...mockParse(userText, currentModel), _source: "mock" };
 }
 
 // --- Build spec/compare narration from real data (Fabric or mock) ---
@@ -86,14 +108,7 @@ app.post("/agent", async (req, res) => {
     const cached = fromCache(user_text);
     if (cached) return res.json({ ...cached, _source: "cache" });
 
-    let result;
-    if (FOUNDRY_READY) {
-      result = await callFoundry(user_text, current_model);
-      result._source = "foundry";
-    } else {
-      result = mockParse(user_text, current_model);
-      result._source = "mock";
-    }
+    let result = await callLLM(user_text, current_model);
     result = await enrichWithData(result, user_text);
     return res.json(result);
   } catch (err) {
