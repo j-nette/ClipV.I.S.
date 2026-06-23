@@ -30,6 +30,8 @@ export class StandaloneScene implements Consumer {
   private readonly dragPoint = new THREE.Vector3();
   /** Offset from the grabbed point to the box center, so it's held where pinched. */
   private readonly grabOffset = new THREE.Vector3();
+  /** Scratch vector for the rotation pivot (held point). */
+  private readonly pivot = new THREE.Vector3();
 
   private readonly baseColor = new THREE.Color(0x3b82f6);
   private readonly hoverColor = new THREE.Color(0x22d3ee);
@@ -158,6 +160,14 @@ export class StandaloneScene implements Consumer {
   private applyRotate(q: Quat): void {
     if (!this.focused) return;
     const dq = new THREE.Quaternion(q.x, q.y, q.z, q.w);
+    // While grabbed, rotate about the pinch point (the held world point) rather
+    // than the object's center. pivot = position - grabOffset; rotating the
+    // offset keeps that point fixed and preserves the grip for dragging.
+    if (this.grabbed === this.focused) {
+      this.pivot.copy(this.focused.position).sub(this.grabOffset);
+      this.grabOffset.applyQuaternion(dq);
+      this.focused.position.copy(this.pivot).add(this.grabOffset);
+    }
     this.focused.quaternion.premultiply(dq);
   }
 
