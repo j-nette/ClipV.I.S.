@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClipV.I.S.</title>
+  <link rel="stylesheet" href="style.css?v=8" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="stage"></canvas>
+
+  <section id="panel">
+    <h1>📎 ClipV.I.S.</h1>
+    <button id="listen" class="listen">🎙️ Listen</button>
+    <div id="status" class="status idle">idle</div>
+    <form id="typeform" class="typeform">
+      <input id="typebox" type="text" placeholder="…or type: show me the Xbox controller" autocomplete="off" />
+    </form>
+    <div class="heard"><span class="label">Heard:</span> <span id="heard">—</span></div>
+    <div class="narration" id="narration"></div>
+    <label class="voicepick">🗣️ Clippy's voice
+      <select id="voiceSelect"></select>
+    </label>
+    <details>
+      <summary>agent JSON</summary>
+      <pre id="output">{ }</pre>
+    </details>
+    <div class="hint">
+      Try: <em>"Clippy, show me the Xbox controller"</em> · <em>"compare to the Surface Pro 10"</em><br>
+      Keys: <kbd>1</kbd> Surface · <kbd>2</kbd> weigh · <kbd>3</kbd> compare · <kbd>4</kbd> Xbox · <kbd>5</kbd> Building 7 · <kbd>H</kbd> pyramid mode
+    </div>
+  </section>
+
+  <script type="module" src="scene.js?v=8"></script>
+  <script src="app.js?v=8"></script>
+</body>
+</html>

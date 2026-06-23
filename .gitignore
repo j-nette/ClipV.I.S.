@@ -28,3 +28,10 @@ Thumbs.db
 # Large model artifacts (use Git LFS if needed)
 *.psd
 *.blend1
+
+# runtime logs
+agent/out.log
+agent/err.log
+
+# generated voice samples
+voice/samples/

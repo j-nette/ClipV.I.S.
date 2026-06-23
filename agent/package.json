@@ -1,0 +1,17 @@
+{
+  "name": "clipvis-agent",
+  "version": "0.1.0",
+  "description": "ClipV.I.S. voice agent backend — Foundry + Fabric proxy with mock fallback",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@azure/identity": "^4.4.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mssql": "^11.0.1"
+  }
+}
