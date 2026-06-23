@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import path from "node:path";
+import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { SYSTEM_PROMPT } from "./systemPrompt.js";
 import { mockParse } from "./mockParser.js";
@@ -10,6 +11,25 @@ import { lookupModelMetadata, getAllModels, fabricStatus } from "./fabric.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.use(express.json());
+
+// Folder of pre-rendered voice clips (any voice you want: ElevenLabs website,
+// recordings, etc.). A clip named after the slugified narration is played
+// instead of calling a TTS service — lets you use voices the free API blocks.
+const CLIPS_DIR = path.join(__dirname, "..", "voice", "clips");
+
+function slugify(text) {
+  return (text || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+}
+
+function findClip(text) {
+  const slug = slugify(text);
+  if (!slug) return null;
+  for (const ext of [".mp3", ".wav", ".ogg", ".m4a"]) {
+    const p = path.join(CLIPS_DIR, slug + ext);
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
 
 // Serve the voice frontend so everything runs from one origin (mic needs https/localhost).
 app.use(express.static(path.join(__dirname, "..", "voice")));
@@ -132,6 +152,14 @@ app.get("/models", async (_req, res) => res.json(await getAllModels()));
 app.post("/tts", async (req, res) => {
   const { text } = req.body || {};
   if (!text) return res.status(204).end();
+
+  // 0) Pre-rendered clip (any voice — bypasses TTS APIs entirely)
+  const clip = findClip(text);
+  if (clip) {
+    const type = clip.endsWith(".wav") ? "audio/wav" : clip.endsWith(".ogg") ? "audio/ogg" : "audio/mpeg";
+    res.set("Content-Type", type);
+    return fs.createReadStream(clip).pipe(res);
+  }
 
   // 1) ElevenLabs (best/custom voices) — set ELEVENLABS_API_KEY + ELEVENLABS_VOICE_ID
   if (process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_VOICE_ID) {
