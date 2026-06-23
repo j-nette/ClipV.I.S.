@@ -29,7 +29,7 @@ export const PINCH_THRESHOLD = 0.4;
 export interface GestureState {
   point: boolean;
   pinch: boolean;
-  /** Pointer position in NDC (index fingertip), present when point or pinch. */
+  /** Index-fingertip position in NDC. Present whenever a hand is visible. */
   cursor: NDC | null;
   /** Normalized thumb–index distance — exposed so the controller can apply hysteresis. */
   pinchRatio: number;
@@ -52,7 +52,9 @@ export function detectHand(hand: HandLandmarks): GestureState {
 
   const point = !pinch && isPointing(hand);
 
-  const cursor = point || pinch ? toNDC(hand[LM.INDEX_TIP]) : null;
+  // Cursor is available whenever a hand is visible, so the controller can track
+  // position through the pinch hysteresis band (not only while a gesture fires).
+  const cursor = toNDC(hand[LM.INDEX_TIP]);
 
   return { point, pinch, cursor, pinchRatio };
 }

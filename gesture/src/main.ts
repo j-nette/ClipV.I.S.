@@ -5,7 +5,7 @@ import { startCamera, CameraError } from './camera';
 import { HandTracker } from './handTracker';
 import { Overlay } from './overlay';
 import { detect } from './gestureDetector';
-import type { GestureState } from './gestureDetector';
+import { GestureController } from './gestureController';
 import type { Consumer } from './types';
 
 /**
@@ -67,20 +67,15 @@ async function startHandTracking(
 
     const overlay = overlayCanvas ? new Overlay(overlayCanvas) : null;
 
-    // Phase 2: detect point/pinch from landmarks, reflect on screen, log edges.
-    // (Phase 3 will smooth these and emit them onto the gesture bus.)
-    let wasPinching = false;
-    let wasPointing = false;
+    // Phase 3: feed detector frames through the controller, which smooths,
+    // debounces, and emits stable gesture events onto the bus → the active
+    // consumer (StandaloneScene) highlights/grabs/drags in response.
+    const controller = new GestureController();
     tracker.onResults((frame) => {
       const state = detect(frame.hands);
       overlay?.draw(frame, state);
-      updateStateBadge(stateEl, state);
-
-      if (state.pinch && !wasPinching) console.log('PINCH START', state.cursor);
-      if (!state.pinch && wasPinching) console.log('PINCH END');
-      if (state.point && !wasPointing) console.log('POINT', state.cursor);
-      wasPinching = state.pinch;
-      wasPointing = state.point;
+      controller.update(state);
+      updateStateBadge(stateEl, controller.state);
     });
 
     tracker.start(video);
@@ -95,13 +90,13 @@ async function startHandTracking(
   }
 }
 
-/** Reflect the current gesture on the centered HUD badge. */
-function updateStateBadge(el: HTMLElement | null, state: GestureState): void {
+/** Reflect the controller's stable gesture mode on the centered HUD badge. */
+function updateStateBadge(el: HTMLElement | null, mode: 'idle' | 'point' | 'pinch'): void {
   if (!el) return;
-  if (state.pinch) {
+  if (mode === 'pinch') {
     el.textContent = 'PINCH';
     el.className = 'pinch';
-  } else if (state.point) {
+  } else if (mode === 'point') {
     el.textContent = 'POINT';
     el.className = 'point';
   } else {

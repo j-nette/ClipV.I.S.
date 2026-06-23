@@ -44,7 +44,8 @@ describe('gestureDetector', () => {
     const state = detectHand(openHand());
     expect(state.pinch).toBe(false);
     expect(state.point).toBe(false);
-    expect(state.cursor).toBeNull();
+    // Cursor is still reported whenever a hand is visible.
+    expect(state.cursor).not.toBeNull();
   });
 
   it('detects pinch when thumb tip meets index tip', () => {
