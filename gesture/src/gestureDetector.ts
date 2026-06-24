@@ -30,11 +30,11 @@ export const LM = {
 export const PINCH_THRESHOLD = 0.4;
 
 /**
- * A pinch also requires the index finger to be extended (tip far enough from its
- * knuckle). In a fist the index tucks into the palm, so this rejects the fist
- * even though its thumb + index tips are close together.
+ * A pinch also requires the index fingertip to be clear of the palm in 3D
+ * (distance to the palm center / hand size above this). A fist tucks the
+ * fingertip into the palm, so it's rejected even though thumb + index tips touch.
  */
-export const INDEX_EXTEND_THRESHOLD = 0.45;
+export const INDEX_PALM_CLEARANCE = 0.6;
 
 export interface GestureState {
   point: boolean;
@@ -58,10 +58,10 @@ export function detect(hands: HandLandmarks[]): GestureState {
 export function detectHand(hand: HandLandmarks): GestureState {
   const handSize = dist(hand[LM.WRIST], hand[LM.MIDDLE_MCP]) || 1e-6;
   const pinchRatio = dist(hand[LM.THUMB_TIP], hand[LM.INDEX_TIP]) / handSize;
-  // The index must be extended (tip away from its knuckle); a fist curls the
-  // index into the palm even though thumb + index tips are close, so it's rejected.
-  const indexExtension = dist(hand[LM.INDEX_TIP], hand[LM.INDEX_MCP]) / handSize;
-  const pinch = pinchRatio < PINCH_THRESHOLD && indexExtension > INDEX_EXTEND_THRESHOLD;
+  // The index fingertip must be clear of the palm in 3D. A fist curls it into
+  // the palm even though thumb + index tips are close, so the fist is rejected.
+  const indexPalmClearance = dist(hand[LM.INDEX_TIP], palmCenter(hand)) / handSize;
+  const pinch = pinchRatio < PINCH_THRESHOLD && indexPalmClearance > INDEX_PALM_CLEARANCE;
 
   const point = !pinch && isPointing(hand);
 
@@ -70,6 +70,18 @@ export function detectHand(hand: HandLandmarks): GestureState {
   const cursor = toNDC(hand[LM.INDEX_TIP]);
 
   return { point, pinch, cursor, pinchRatio };
+}
+
+/** Approximate palm center: centroid of the wrist and the four finger knuckles. */
+function palmCenter(hand: HandLandmarks): Landmark {
+  const ids = [LM.WRIST, LM.INDEX_MCP, LM.MIDDLE_MCP, LM.RING_MCP, LM.PINKY_MCP];
+  let x = 0, y = 0, z = 0;
+  for (const i of ids) {
+    x += hand[i].x;
+    y += hand[i].y;
+    z += hand[i].z;
+  }
+  return { x: x / ids.length, y: y / ids.length, z: z / ids.length };
 }
 
 /** Index extended while middle/ring/pinky are curled. */
