@@ -1,6 +1,6 @@
 import { gestureBus } from './eventBus';
 import type { HandObservation } from './gestureDetector';
-import { INDEX_PALM_CLEARANCE } from './gestureDetector';
+import { INDEX_PALM_CLEARANCE, PINCH_THRESHOLD } from './gestureDetector';
 import type { GestureEvent, NDC, Quat } from './types';
 import { quatMultiply, quatConjugate, quatAngle, quatClampAngle, IDENTITY_QUAT } from './quat';
 
@@ -61,8 +61,10 @@ export class GestureController {
   private prevDist = 0;
 
   constructor(opts: ControllerOptions = {}) {
-    this.pinchOn = opts.pinchOn ?? 0.35;
-    this.pinchOff = opts.pinchOff ?? 0.5;
+    // PINCH_THRESHOLD is the single source of truth: a pinch enters when the
+    // ratio drops below it. pinchOff sits a touch above for release hysteresis.
+    this.pinchOn = opts.pinchOn ?? PINCH_THRESHOLD;
+    this.pinchOff = opts.pinchOff ?? PINCH_THRESHOLD + 0.1;
     this.palmClearance = opts.palmClearance ?? INDEX_PALM_CLEARANCE;
     this.alpha = opts.smoothing ?? 0.5;
     this.rotateDeadzone = opts.rotateDeadzone ?? 0.01;

@@ -21,7 +21,14 @@ function hand(partial: Partial<HandObservation> = {}): HandObservation {
 
 function makeController() {
   const events: GestureEvent[] = [];
-  const controller = new GestureController({ emit: (e) => events.push(e) });
+  // Explicit thresholds keep these tests independent of the production
+  // PINCH_THRESHOLD default (enter 0.35 / exit 0.5 / clearance 0.6).
+  const controller = new GestureController({
+    pinchOn: 0.35,
+    pinchOff: 0.5,
+    palmClearance: 0.6,
+    emit: (e) => events.push(e),
+  });
   return { controller, events };
 }
 
