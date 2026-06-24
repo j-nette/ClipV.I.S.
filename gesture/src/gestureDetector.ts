@@ -27,9 +27,24 @@ export const LM = {
 } as const;
 
 /** Pinch when thumb–index distance / hand size drops below this. */
-export const PINCH_THRESHOLD = 0.4;
+export const PINCH_THRESHOLD = 0.22;
 
-/** A finger counts as curled when its tip–MCP distance / hand size is below this. */
+/**
+ * A pinch also requires the index fingertip to be clear of the palm in 3D
+ * (distance to the palm center / hand size above this). A fist tucks the
+ * fingertip into the palm, so it's rejected even though thumb + index tips touch.
+ * Tuned between observed fist (~0.35) and pinch (~0.6) clearances.
+ */
+export const INDEX_PALM_CLEARANCE = 0.5;
+
+/**
+ * Three-finger pinch: the middle fingertip also joins the thumb (its distance to
+ * the thumb / hand size below this), turning a two-finger object pinch into an
+ * assembly pinch. A touch looser than PINCH_THRESHOLD since the middle is longer.
+ */
+export const MIDDLE_PINCH_THRESHOLD = 0.32;
+
+/** A finger counts as curled when its tip-to-MCP distance / hand size is below this. */
 export const FIST_CURL_THRESHOLD = 0.5;
 
 export interface GestureState {
@@ -42,6 +57,8 @@ export interface GestureState {
   pinchRatio: number;
   /** Largest normalized thumb contact distance used for the rock-sign create pose. */
   createPoseRatio: number;
+  /** Normalized 3D index-tip-to-palm distance — exposed for tuning the fist guard. */
+  indexPalmClearance: number;
 }
 
 const NEUTRAL: GestureState = {
@@ -51,6 +68,7 @@ const NEUTRAL: GestureState = {
   cursor: null,
   pinchRatio: 1,
   createPoseRatio: 1,
+  indexPalmClearance: 0,
 };
 
 /** Detect gestures for the first hand in a frame (or neutral if none). */
@@ -70,9 +88,11 @@ export function detectHand(hand: HandLandmarks): GestureState {
   ) / handSize;
   const fist = isFist(hand, handSize);
   const createPose = isCreatePose(hand, handSize, createPoseRatio, fist);
-  // A fist also brings thumb + index tips together, so suppress pinch when the
-  // whole hand is curled (all four fingers folded toward their knuckles).
-  const pinch = pinchRatio < PINCH_THRESHOLD && !createPose && !fist;
+  // The index fingertip must be clear of the palm in 3D — this rejects a fist
+  // (curled into the palm); the rock-sign create pose also isn't a pinch.
+  const indexPalmClearance = dist(hand[LM.INDEX_TIP], palmCenter(hand)) / handSize;
+  const pinch =
+    pinchRatio < PINCH_THRESHOLD && indexPalmClearance > INDEX_PALM_CLEARANCE && !createPose;
 
   const point = !pinch && !createPose && isPointing(hand);
 
@@ -80,7 +100,27 @@ export function detectHand(hand: HandLandmarks): GestureState {
   // position through the pinch hysteresis band (not only while a gesture fires).
   const cursor = toNDC(hand[LM.INDEX_TIP]);
 
-  return { point, pinch, createPose, cursor, pinchRatio, createPoseRatio };
+  return {
+    point,
+    pinch,
+    createPose,
+    cursor,
+    pinchRatio,
+    createPoseRatio,
+    indexPalmClearance,
+  };
+}
+
+/** Approximate palm center: centroid of the wrist and the four finger knuckles. */
+function palmCenter(hand: HandLandmarks): Landmark {
+  const ids = [LM.WRIST, LM.INDEX_MCP, LM.MIDDLE_MCP, LM.RING_MCP, LM.PINKY_MCP];
+  let x = 0, y = 0, z = 0;
+  for (const i of ids) {
+    x += hand[i].x;
+    y += hand[i].y;
+    z += hand[i].z;
+  }
+  return { x: x / ids.length, y: y / ids.length, z: z / ids.length };
 }
 
 /** True when all four fingers are curled toward their knuckles (a closed fist). */
@@ -141,6 +181,10 @@ export interface HandObservation {
   pinchRatio: number;
   createPose: boolean;
   createPoseRatio: number;
+  /** Normalized 3D index-tip-to-palm distance — exposed for tuning the fist guard. */
+  indexPalmClearance: number;
+  /** True when the middle fingertip also joins the pinch (thumb+index+middle). */
+  threeFinger: boolean;
   /** Index fingertip in NDC (pointer / highlight position). */
   cursor: NDC;
   /** Thumb–index midpoint in NDC — the grab anchor used while pinching. */
@@ -167,6 +211,12 @@ export function observeHand(hand: HandLandmarks, label: string): HandObservation
   const index = toNDC(hand[LM.INDEX_TIP]);
   const anchor = { x: (thumb.x + index.x) / 2, y: (thumb.y + index.y) / 2 };
 
+  // Three-finger pinch: middle tip also close to the thumb (only meaningful
+  // while the basic thumb+index pinch holds).
+  const handSize = dist(hand[LM.WRIST], hand[LM.MIDDLE_MCP]) || 1e-6;
+  const thumbMiddle = dist(hand[LM.THUMB_TIP], hand[LM.MIDDLE_TIP]) / handSize;
+  const threeFinger = base.pinch && thumbMiddle < MIDDLE_PINCH_THRESHOLD;
+
   return {
     label,
     point: base.point,
@@ -174,6 +224,8 @@ export function observeHand(hand: HandLandmarks, label: string): HandObservation
     pinchRatio: base.pinchRatio,
     createPose: base.createPose,
     createPoseRatio: base.createPoseRatio,
+    indexPalmClearance: base.indexPalmClearance,
+    threeFinger,
     cursor: base.cursor ?? index,
     anchor,
     orient: handOrientation(hand),

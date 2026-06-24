@@ -13,6 +13,8 @@ function hand(partial: Partial<HandObservation> = {}): HandObservation {
     pinchRatio: 1,
     createPose: false,
     createPoseRatio: 1,
+    indexPalmClearance: 1,
+    threeFinger: false,
     cursor: { x: 0, y: 0 },
     anchor: { x: 0, y: 0 },
     orient: IDENTITY_QUAT,
@@ -22,7 +24,14 @@ function hand(partial: Partial<HandObservation> = {}): HandObservation {
 
 function makeController() {
   const events: GestureEvent[] = [];
-  const controller = new GestureController({ emit: (e) => events.push(e) });
+  // Explicit thresholds keep these tests independent of the production
+  // PINCH_THRESHOLD default (enter 0.35 / exit 0.5 / clearance 0.6).
+  const controller = new GestureController({
+    pinchOn: 0.35,
+    pinchOff: 0.5,
+    palmClearance: 0.6,
+    emit: (e) => events.push(e),
+  });
   return { controller, events };
 }
 
@@ -35,6 +44,36 @@ describe('GestureController (manipulation)', () => {
     controller.update([hand({ pinchRatio: 0.2, anchor: { x: 0.2, y: 0.2 } })]);
     expect(controller.state).toBe('grab');
     expect(types(events)).toEqual(['pinch_start', 'pinch_move']);
+  });
+
+  it('two-finger grab targets a single object (scope=object)', () => {
+    const { controller, events } = makeController();
+    controller.update([hand({ pinchRatio: 0.2, threeFinger: false })]);
+    expect(controller.scopeState).toBe('object');
+    const start = events.find((e) => e.type === 'pinch_start');
+    if (start && start.type === 'pinch_start') expect(start.scope).toBe('object');
+  });
+
+  it('three-finger grab targets the whole assembly (scope=assembly)', () => {
+    const { controller, events } = makeController();
+    controller.update([hand({ pinchRatio: 0.2, threeFinger: true })]);
+    expect(controller.state).toBe('grab');
+    expect(controller.scopeState).toBe('assembly');
+    const start = events.find((e) => e.type === 'pinch_start');
+    expect(start).toBeDefined();
+    if (start && start.type === 'pinch_start') expect(start.scope).toBe('assembly');
+  });
+
+  it('three-finger two-hand scale targets the assembly', () => {
+    const { controller, events } = makeController();
+    const h = (label: string, x: number) =>
+      hand({ label, pinchRatio: 0.2, threeFinger: true, anchor: { x, y: 0 } });
+    controller.update([h('Left', -0.1), h('Right', 0.1)]);
+    controller.update([h('Left', -0.15), h('Right', 0.15)]);
+    expect(controller.state).toBe('scale');
+    expect(controller.scopeState).toBe('assembly');
+    const zoom = events.find((e) => e.type === 'zoom');
+    if (zoom && zoom.type === 'zoom') expect(zoom.scope).toBe('assembly');
   });
 
   it('twisting the hand while grabbing emits a 3D rotation', () => {
@@ -119,6 +158,23 @@ describe('GestureController (manipulation)', () => {
     controller.update([hand({ createPoseRatio: 0.2, cursor: { x: 0.3, y: 0.4 } })]);
     controller.update([hand({ createPoseRatio: 0.25, cursor: { x: 0.31, y: 0.41 } })]);
     expect(types(events).filter((type) => type === 'orb_create')).toEqual(['orb_create']);
+  });
+
+  it('does NOT grab a fist even with tips together (low palm clearance)', () => {
+    const { controller } = makeController(); // palmClearance default 0.6
+    // Tips close (low ratio) but fingertip tucked into palm (low clearance).
+    controller.update([hand({ pinchRatio: 0.1, indexPalmClearance: 0.3 })]);
+    expect(controller.state).toBe('idle');
+  });
+
+  it('releases an active grab if the hand curls into a fist', () => {
+    const { controller, events } = makeController();
+    controller.update([hand({ pinchRatio: 0.1, indexPalmClearance: 0.9 })]); // grab
+    expect(controller.state).toBe('grab');
+    events.length = 0;
+    controller.update([hand({ pinchRatio: 0.1, indexPalmClearance: 0.3 })]); // fist
+    expect(controller.state).toBe('idle');
+    expect(types(events)).toEqual(['pinch_end']);
   });
 
   it('losing all hands ends an active grab', () => {

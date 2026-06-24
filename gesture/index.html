@@ -140,6 +140,7 @@
       #hud b { color: #22d3ee; }
       /* Dev mode (?debug) reveals the skeleton overlay and key help. */
       body.debug #overlay,
+      body.debug #metrics,
       body.debug #hud { display: block; }
       #status {
         position: fixed; right: 16px; top: 16px; z-index: 10;
@@ -158,6 +159,14 @@
       #gesture-state.point { color: #38bdf8; border-color: #38bdf8; }
       #gesture-state.pinch { color: #22c55e; border-color: #22c55e;
         background: rgba(22, 197, 94, 0.15); }
+      #metrics {
+        position: fixed; left: 16px; top: 16px; z-index: 10;
+        padding: 8px 12px; border-radius: 8px;
+        background: rgba(17, 24, 39, 0.8); backdrop-filter: blur(6px);
+        font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.6;
+        color: #cbd5e1; white-space: pre; display: none;
+      }
+      #metrics b { color: #22d3ee; }
       #toast {
         position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
         z-index: 20; max-width: 80vw;
@@ -188,10 +197,11 @@
     <button id="open-hologram">🔺 Open hologram window</button>
     <div id="status">starting…</div>
     <div id="gesture-state">IDLE</div>
+    <div id="metrics"></div>
     <div id="hud">
-      <div><b>Gesture — manipulation</b> (1 pinch = move + twist · 2 pinch = scale)</div>
-      <div><b>3-finger pinch</b> creates an orb with saved title + description</div>
-      <div><kbd>P</kbd> point · <kbd>G</kbd> grab · <kbd>← ↑ ↓ →</kbd> move</div>
+      <div><b>Gesture — manipulation</b> (2-finger = object · 3-finger = whole assembly)</div>
+      <div><b>Rock sign</b> (index + pinky) creates an orb with saved title + description</div>
+      <div><kbd>P</kbd> point · <kbd>G</kbd> grab · <kbd>B</kbd> object/assembly · <kbd>← ↑ ↓ →</kbd> move</div>
       <div><kbd>Q</kbd>/<kbd>E</kbd> yaw · <kbd>R</kbd>/<kbd>F</kbd> pitch · <kbd>C</kbd>/<kbd>V</kbd> roll · <kbd>Z</kbd>/<kbd>X</kbd> or wheel = zoom</div>
     </div>
     <div id="toast"></div>

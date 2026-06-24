@@ -1,6 +1,7 @@
 import { gestureBus } from './eventBus';
 import type { HandObservation } from './gestureDetector';
-import type { GestureEvent, NDC, Quat } from './types';
+import { INDEX_PALM_CLEARANCE, PINCH_THRESHOLD } from './gestureDetector';
+import type { GestureEvent, NDC, Quat, ManipulationScope } from './types';
 import { quatMultiply, quatConjugate, quatAngle, quatClampAngle, IDENTITY_QUAT } from './quat';
 
 /**
@@ -24,6 +25,8 @@ export interface ControllerOptions {
   pinchOn?: number;
   /** Pinch exits when ratio rises above this (must be > pinchOn). */
   pinchOff?: number;
+  /** Min index-to-palm clearance to count as a pinch (rejects a fist). */
+  palmClearance?: number;
   /** EMA smoothing factor for the grab anchor, 0..1 (higher = more responsive). */
   smoothing?: number;
   /** Min |roll delta| (radians) before a rotate is emitted — kills jitter. */
@@ -39,6 +42,7 @@ export interface ControllerOptions {
 export class GestureController {
   private readonly pinchOn: number;
   private readonly pinchOff: number;
+  private readonly palmClearance: number;
   private readonly alpha: number;
   private readonly rotateDeadzone: number;
   private readonly rotateClamp: number;
@@ -57,10 +61,15 @@ export class GestureController {
   private smoothed: NDC | null = null;
   // scale session
   private prevDist = 0;
+  // What the current grab/scale session acts on (locked at entry).
+  private scope: ManipulationScope = 'object';
 
   constructor(opts: ControllerOptions = {}) {
-    this.pinchOn = opts.pinchOn ?? 0.35;
-    this.pinchOff = opts.pinchOff ?? 0.5;
+    // PINCH_THRESHOLD is the single source of truth: a pinch enters when the
+    // ratio drops below it. pinchOff sits a touch above for release hysteresis.
+    this.pinchOn = opts.pinchOn ?? PINCH_THRESHOLD;
+    this.pinchOff = opts.pinchOff ?? PINCH_THRESHOLD + 0.1;
+    this.palmClearance = opts.palmClearance ?? INDEX_PALM_CLEARANCE;
     this.alpha = opts.smoothing ?? 0.5;
     this.rotateDeadzone = opts.rotateDeadzone ?? 0.01;
     this.rotateClamp = opts.rotateClamp ?? 0.3;
@@ -71,6 +80,11 @@ export class GestureController {
   /** Current stable mode (for HUD/debug). */
   get state(): Mode {
     return this.mode;
+  }
+
+  /** What the active grab/scale session targets (object vs whole assembly). */
+  get scopeState(): ManipulationScope {
+    return this.scope;
   }
 
   /** Feed one frame of per-hand observations; emits transition/move events. */
@@ -118,11 +132,14 @@ export class GestureController {
 
   /** Updates and returns the hysteretic pinch state for a hand. */
   private applyHysteresis(h: HandObservation): boolean {
+    // The index must stay clear of the palm, or it's a fist (never a pinch).
+    const clear = h.indexPalmClearance > this.palmClearance;
     const was = this.pinchState.get(h.label) ?? false;
     let now = was;
     if (was) {
-      if (h.pinchRatio > this.pinchOff) now = false;
-    } else if (h.pinchRatio < this.pinchOn) {
+      // Release when the fingers open OR the hand curls into a fist.
+      if (h.pinchRatio > this.pinchOff || !clear) now = false;
+    } else if (h.pinchRatio < this.pinchOn && clear) {
       now = true;
     }
     this.pinchState.set(h.label, now);
@@ -147,8 +164,12 @@ export class GestureController {
       this.activeLabel = h.label;
       this.prevOrient = h.orient;
       this.smoothed = { ...h.anchor };
-      this.emit({ type: 'pinch_start', ndc: this.smoothed });
+      // Three-finger pinch manipulates the whole assembly; two-finger, one object.
+      this.scope = h.threeFinger ? 'assembly' : 'object';
+      this.emit({ type: 'pinch_start', ndc: this.smoothed, scope: this.scope });
     } else if (mode === 'scale') {
+      // Assembly scale needs both hands three-fingered; otherwise object scale.
+      this.scope = pinching[0].threeFinger && pinching[1].threeFinger ? 'assembly' : 'object';
       this.prevDist = anchorDist(pinching[0], pinching[1]);
     } else if (mode === 'point' && pointing) {
       this.emit({ type: 'point', ndc: pointing.cursor });
@@ -165,18 +186,18 @@ export class GestureController {
             y: this.alpha * h.anchor.y + (1 - this.alpha) * this.smoothed.y,
           }
         : { ...h.anchor };
-      this.emit({ type: 'pinch_move', ndc: this.smoothed });
+      this.emit({ type: 'pinch_move', ndc: this.smoothed, scope: this.scope });
       // Rotate: 3D hand-orientation delta → rotate on every axis, clamped.
       const delta = quatMultiply(h.orient, quatConjugate(this.prevOrient));
       this.prevOrient = h.orient;
       if (quatAngle(delta) >= this.rotateDeadzone) {
-        this.emit({ type: 'rotate', q: quatClampAngle(delta, this.rotateClamp) });
+        this.emit({ type: 'rotate', q: quatClampAngle(delta, this.rotateClamp), scope: this.scope });
       }
     } else if (mode === 'scale') {
       const d = anchorDist(pinching[0], pinching[1]);
       if (this.prevDist > 1e-4) {
         const delta = clamp(d / this.prevDist - 1, -this.zoomClamp, this.zoomClamp);
-        if (delta !== 0) this.emit({ type: 'zoom', delta });
+        if (delta !== 0) this.emit({ type: 'zoom', delta, scope: this.scope });
       }
       this.prevDist = d;
     } else if (mode === 'point' && pointing) {
@@ -188,7 +209,7 @@ export class GestureController {
     if (mode === 'grab') {
       this.activeLabel = null;
       this.smoothed = null;
-      this.emit({ type: 'pinch_end' });
+      this.emit({ type: 'pinch_end', scope: this.scope });
     } else if (mode === 'point') {
       this.emit({ type: 'point_end' });
     }
