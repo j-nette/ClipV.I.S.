@@ -346,26 +346,38 @@ export class ModelScene {
           mat.emissive.copy(p.baseColors[i]);
           mat.emissiveIntensity = focused || hovered ? 0.7 : 0.3;
         }
+
+        let wireframe = false;
+        let transparent = ghost;
+        let opacity = ghost ? 0.1 : 1;
+        let depthWrite = !ghost;
+
         switch (s.renderMode) {
           case 'wireframe':
-            mat.wireframe = true;
-            mat.transparent = ghost;
-            mat.opacity = ghost ? 0.08 : 1;
-            mat.depthWrite = true;
+            wireframe = true;
+            opacity = ghost ? 0.08 : 1;
+            depthWrite = true;
             break;
           case 'xray':
-            mat.wireframe = false;
-            mat.transparent = true;
-            mat.opacity = ghost ? 0.05 : focused ? 0.6 : 0.32;
-            mat.depthWrite = false;
+            transparent = true;
+            opacity = ghost ? 0.05 : focused ? 0.6 : 0.32;
+            depthWrite = false;
             break;
           case 'solid':
           default:
-            mat.wireframe = false;
-            mat.transparent = ghost;
-            mat.opacity = ghost ? 0.1 : 1;
-            mat.depthWrite = !ghost;
             break;
+        }
+
+        mat.wireframe = wireframe;
+        mat.opacity = opacity;
+        mat.depthWrite = depthWrite;
+        // Toggling `transparent` at runtime needs a program recompile (it's part
+        // of the program cache key). Flag needsUpdate ONLY on an actual change,
+        // otherwise the material gets stuck blended (faded) after x-ray — and we
+        // avoid recompiling every frame.
+        if (mat.transparent !== transparent) {
+          mat.transparent = transparent;
+          mat.needsUpdate = true;
         }
       });
     }
