@@ -10,7 +10,7 @@ import {
 } from '../shared/modelState';
 import { ModelScene } from '../shared/modelScene';
 import { createPresenterSync, type PresenterSync } from '../shared/holoSync';
-import { quatFromAxisAngle, quatMultiply } from '../quat';
+import { quatFromAxisAngle, quatMultiply, quatNormalize } from '../quat';
 
 /**
  * Presenter consumer for the laptop screen — the OWNER of `ModelState`.
@@ -79,7 +79,7 @@ export class HologramPresenter implements Consumer {
       case 'rotate':
         this.snapping = false; // manual rotate takes over from an in-flight snap
         this.mutate((s) => {
-          s.orientation = quatMultiply(e.q, s.orientation);
+          s.orientation = quatNormalize(quatMultiply(e.q, s.orientation));
         });
         break;
       case 'zoom':
@@ -177,7 +177,7 @@ export class HologramPresenter implements Consumer {
     // and broadcast so the follower purely applies the received orientation.
     if (this.state.spin.on) {
       const dq = quatFromAxisAngle(UP, this.state.spin.speed * dt);
-      this.state.orientation = quatMultiply(dq, this.state.orientation);
+      this.state.orientation = quatNormalize(quatMultiply(dq, this.state.orientation));
       this.publish();
     }
 

@@ -188,7 +188,7 @@ export class ModelScene {
     if (s.model !== this.model || s.compareTo !== this.compareTo) {
       this.setModels(s.model, s.compareTo);
     }
-    this.pivot.quaternion.copy(toThree(s.orientation));
+    this.pivot.quaternion.copy(toThree(s.orientation)).normalize();
     // Ease the actual displacement toward the target so explode animates.
     this.explodeAmount += (s.explode - this.explodeAmount) * EXPLODE_SPEED;
     this.applyExplode(this.explodeAmount);
