@@ -103,7 +103,16 @@ async function enrichWithData(result, userText) {
   if (result.intent === "lookup_spec" && result.model) {
     const m = await lookupModelMetadata(result.model);
     if (m) {
-      if (t.includes("weigh") || t.includes("weight") || t.includes("heavy")) {
+      const asksDimensions = /dimension|measure|size|length|width|height|how (big|tall|wide|long)|scale|mass/.test(t);
+      if (asksDimensions) {
+        const parts = [];
+        if (m.dimensions) parts.push(`it measures ${m.dimensions}`);
+        if (m.weight && m.weight !== "n/a") parts.push(`weighs ${m.weight}`);
+        if (m.material) parts.push(`and is made of ${m.material}`);
+        result.narration = parts.length
+          ? `The ${m.display}: ${parts.join(", ")}.`
+          : `${m.display}: ${m.blurb}`;
+      } else if (t.includes("weigh") || t.includes("weight") || t.includes("heavy")) {
         result.narration = `It weighs ${m.weight}.`;
       } else if (t.includes("cost") || t.includes("price") || t.includes("much")) {
         result.narration = `It costs ${m.price}.`;

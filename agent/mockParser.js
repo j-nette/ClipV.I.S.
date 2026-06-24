@@ -41,13 +41,21 @@ export function mockParse(userText, currentModel) {
   }
 
   // lookup_spec
-  const specWords = ["weigh", "weight", "cost", "price", "how much", "how big", "size", "spec", "heavy"];
+  const specWords = ["weigh", "weight", "cost", "price", "how much", "how big", "size", "spec", "heavy",
+    "dimension", "describe", "measure", "length", "width", "height", "how tall", "how wide", "how long", "scale", "mass", "material"];
   if (specWords.some((w) => t.includes(w))) {
     const model = resolveModel(t) || currentModel;
     if (!model || !MODELS[model]) return unknown();
     const m = MODELS[model];
     let narration = `${m.display}: ${m.blurb}`;
-    if (t.includes("weigh") || t.includes("weight") || t.includes("heavy")) {
+    const asksDimensions = /dimension|describe|measure|size|length|width|height|how (big|tall|wide|long)|scale|mass/.test(t);
+    if (asksDimensions) {
+      const parts = [];
+      if (m.dimensions) parts.push(`it measures ${m.dimensions}`);
+      if (m.weight && m.weight !== "n/a") parts.push(`weighs ${m.weight}`);
+      if (m.material) parts.push(`and is made of ${m.material}`);
+      narration = parts.length ? `The ${m.display}: ${parts.join(", ")}.` : narration;
+    } else if (t.includes("weigh") || t.includes("weight") || t.includes("heavy")) {
       narration = `It weighs ${m.weight}.`;
     } else if (t.includes("cost") || t.includes("price") || t.includes("much")) {
       narration = `It costs ${m.price}.`;

@@ -90,7 +90,10 @@ function clearGroup(g) {
 // Load a model id into a group: try real .glb, fall back to placeholder.
 function loadModel(group, id, offsetX = 0) {
   clearGroup(group);
-  group.position.x = offsetX;
+  group.position.set(offsetX, 0, 0);
+  group.rotation.set(0, 0, 0);
+  group.scale.setScalar(1);
+  group.userData.baseX = offsetX;
   if (!id) return;
   const file = META[id]?.file;
   const url = file ? `/assets/${file}` : null;
@@ -157,6 +160,50 @@ window.setSceneState = ({ model, compare_to } = {}) => {
   loadModel(modelGroup, model, compare_to ? -1.6 : 0);
   loadModel(compareGroup, compare_to, compare_to ? 1.6 : 0);
 };
+
+// ---- Gesture control API (for the gesture/ team — command 3) ----
+// Hand-tracking calls these to manipulate the current model. While any manual
+// transform is active, auto-spin pauses so gestures don't fight the animation.
+let manualControl = false;
+const userTransform = { rot: new THREE.Vector3(0, 0, 0), pos: new THREE.Vector3(0, 0, 0), scale: 1 };
+
+window.clipvisGesture = {
+  // translation: move the model in world units (e.g. from a pinch-drag)
+  translate(dx = 0, dy = 0, dz = 0) {
+    manualControl = true;
+    userTransform.pos.add(new THREE.Vector3(dx, dy, dz));
+  },
+  // rotation: spin the model (radians) — e.g. from a two-finger twist
+  rotate(rx = 0, ry = 0, rz = 0) {
+    manualControl = true;
+    userTransform.rot.add(new THREE.Vector3(rx, ry, rz));
+  },
+  // enlarge / shrink: multiply scale (e.g. pinch-zoom). factor > 1 grows.
+  scaleBy(factor = 1) {
+    manualControl = true;
+    userTransform.scale = Math.max(0.2, Math.min(5, userTransform.scale * factor));
+  },
+  setScale(s = 1) {
+    manualControl = true;
+    userTransform.scale = Math.max(0.2, Math.min(5, s));
+  },
+  // perspective: change camera field-of-view (e.g. spread/!pinch with two hands)
+  setPerspective(fov = 50) {
+    const cam = pinwheel ? holoCam : camera;
+    cam.fov = Math.max(20, Math.min(90, fov));
+    cam.updateProjectionMatrix();
+  },
+  // release manual control -> auto-spin resumes, transform resets smoothly
+  reset() {
+    manualControl = false;
+    userTransform.rot.set(0, 0, 0);
+    userTransform.pos.set(0, 0, 0);
+    userTransform.scale = 1;
+  },
+  // expose state for the gesture team if they need it
+  isManual: () => manualControl,
+};
+
 
 // ---- Pyramid (Pepper's Ghost) pinwheel mode ----
 // Toggle with 'H'. Renders the scene 4x around the model so the acrylic pyramid
@@ -297,8 +344,20 @@ function renderPinwheel() {
 const clock = new THREE.Clock();
 function tick() {
   const t = clock.getElapsedTime();
-  modelGroup.rotation.y = t * 0.5;
-  compareGroup.rotation.y = t * 0.5;
+
+  if (manualControl) {
+    // Gesture team is driving — apply their transform, no auto-spin.
+    for (const g of [modelGroup, compareGroup]) {
+      const baseX = g.userData.baseX ?? 0;
+      g.rotation.set(userTransform.rot.x, userTransform.rot.y, userTransform.rot.z);
+      g.position.set(baseX + userTransform.pos.x, userTransform.pos.y, userTransform.pos.z);
+      g.scale.setScalar(userTransform.scale);
+    }
+  } else {
+    // Default gentle auto-spin.
+    modelGroup.rotation.y = t * 0.5;
+    compareGroup.rotation.y = t * 0.5;
+  }
 
   // Clippy idle bob + state reactions
   clippy.position.y = 0.8 + Math.sin(t * 2) * 0.06;

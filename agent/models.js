@@ -8,6 +8,8 @@ export const MODELS = {
     display: "Surface Pro 11",
     file: "surface_pro_11.glb",
     weight: "1.97 lbs",
+    dimensions: "11.3 by 8.2 by 0.37 inches",
+    material: "machined aluminum",
     price: "$999",
     owner: "Surface Team",
     blurb: "The Surface Pro 11 with the Snapdragon X Elite chip."
@@ -17,6 +19,8 @@ export const MODELS = {
     display: "Surface Pro 10",
     file: "surface_pro_10.glb",
     weight: "1.94 lbs",
+    dimensions: "11.3 by 8.2 by 0.37 inches",
+    material: "machined aluminum",
     price: "$1199",
     owner: "Surface Team",
     blurb: "The previous-gen Surface Pro 10 for business."
@@ -26,6 +30,8 @@ export const MODELS = {
     display: "Xbox Wireless Controller",
     file: "xbox_controller.glb",
     weight: "0.6 lbs",
+    dimensions: "6.1 by 4.2 by 2.6 inches",
+    material: "ABS plastic with rubberized grips",
     price: "$59",
     owner: "Xbox Team",
     blurb: "The Xbox Wireless Controller."
@@ -35,6 +41,8 @@ export const MODELS = {
     display: "Building 7",
     file: "building_7.glb",
     weight: "n/a",
+    dimensions: "roughly 400 by 300 by 75 feet",
+    material: "steel, glass, and concrete",
     price: "n/a",
     owner: "RE&F",
     blurb: "Microsoft Redmond Building 7."

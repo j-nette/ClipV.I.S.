@@ -23,7 +23,8 @@ Map natural language to these ids generously (e.g. "the controller" -> xbox_cont
 
 Intent rules:
 - Asking to see/bring up/pull up/display something -> "show_model", set model, clippy "presenting".
-- Asking about weight/price/size/specs of the current thing -> "lookup_spec". Use the most
+- Asking about specs of the current thing — weight, price, OR dimensions/measurements/size/length/
+  width/height/scale/mass/material ("describe the dimensions for me") -> "lookup_spec". Use the most
   recently shown model (given as context). clippy "presenting".
 - Asking to compare/contrast with another model -> "compare", set model (current) and compare_to.
 - Friendly chit-chat, greetings, or questions answerable in words with no model action ->

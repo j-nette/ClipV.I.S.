@@ -45,7 +45,7 @@ export async function lookupModelMetadata(name) {
       const r = await pool
         .request()
         .input("name", sql.VarChar, name)
-        .query("SELECT name, file, weight, price, owner, blurb FROM dbo.models WHERE name = @name");
+        .query("SELECT name, file, weight, dimensions, material, price, owner, blurb FROM dbo.models WHERE name = @name");
       if (r.recordset.length) {
         const row = r.recordset[0];
         return { ...row, display: prettify(row.name) };
@@ -62,7 +62,7 @@ export async function getAllModels() {
   if (FABRIC_READY) {
     try {
       const pool = await getPool();
-      const r = await pool.request().query("SELECT name, file, weight, price, owner, blurb FROM dbo.models");
+      const r = await pool.request().query("SELECT name, file, weight, dimensions, material, price, owner, blurb FROM dbo.models");
       if (r.recordset.length) {
         const out = {};
         for (const row of r.recordset) out[row.name] = { ...row, display: prettify(row.name) };
