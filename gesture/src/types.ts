@@ -42,6 +42,7 @@ export type GestureEvent =
   | { type: 'pinch_start'; ndc: NDC }
   | { type: 'pinch_move'; ndc: NDC }
   | { type: 'pinch_end' }
+  | { type: 'orb_create'; ndc: NDC }
   /** Incremental 3D rotation of the focused object as a delta quaternion. */
   | { type: 'rotate'; q: Quat }
   /** Incremental zoom of the focused object. Signed scalar: >0 = zoom in, <0 = zoom out. */

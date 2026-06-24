@@ -48,6 +48,8 @@ export class GestureController {
   private mode: Mode = 'idle';
   /** Hysteretic pinch state per hand label. */
   private readonly pinchState = new Map<string, boolean>();
+  /** Hysteretic create-pose state per hand label. */
+  private readonly createPoseState = new Map<string, boolean>();
 
   // grab session
   private activeLabel: string | null = null;
@@ -78,11 +80,17 @@ export class GestureController {
     const seen = new Set<string>();
     for (const h of hands) {
       seen.add(h.label);
+      const wasCreate = this.createPoseState.get(h.label) ?? false;
+      const nowCreate = this.applyCreatePoseHysteresis(h);
+      if (nowCreate && !wasCreate) this.emit({ type: 'orb_create', ndc: h.cursor });
       if (this.applyHysteresis(h)) pinching.push(h);
     }
     // Forget hands that disappeared.
     for (const label of [...this.pinchState.keys()]) {
       if (!seen.has(label)) this.pinchState.delete(label);
+    }
+    for (const label of [...this.createPoseState.keys()]) {
+      if (!seen.has(label)) this.createPoseState.delete(label);
     }
 
     const pointing = hands.find((h) => h.point && !this.pinchState.get(h.label)) ?? null;
@@ -103,6 +111,7 @@ export class GestureController {
     this.exit(this.mode);
     this.mode = 'idle';
     this.pinchState.clear();
+    this.createPoseState.clear();
     this.activeLabel = null;
     this.smoothed = null;
   }
@@ -117,6 +126,18 @@ export class GestureController {
       now = true;
     }
     this.pinchState.set(h.label, now);
+    return now;
+  }
+
+  private applyCreatePoseHysteresis(h: HandObservation): boolean {
+    const was = this.createPoseState.get(h.label) ?? false;
+    let now = was;
+    if (was) {
+      if (h.createPoseRatio > this.pinchOff) now = false;
+    } else if (h.createPoseRatio < this.pinchOn) {
+      now = true;
+    }
+    this.createPoseState.set(h.label, now);
     return now;
   }
 

@@ -9,11 +9,126 @@
       * { box-sizing: border-box; }
       html, body { margin: 0; height: 100%; background: #000; color: #e5e7eb;
         font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
-      #scene { position: fixed; inset: 0; }
+      #scene { position: fixed; inset: 0; overflow: hidden; }
       #overlay {
         position: fixed; inset: 0; z-index: 5; pointer-events: none;
         width: 100%; height: 100%;
         display: none;
+      }
+      .info-layer {
+        position: absolute; inset: 0; z-index: 8; pointer-events: none;
+      }
+      .orb-card {
+        position: absolute;
+        min-width: 120px;
+        max-width: min(320px, calc(100vw - 32px));
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(125, 211, 252, 0.4);
+        background: rgba(8, 15, 28, 0.82);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
+        color: #dbeafe;
+        transform: translate(-50%, -135%);
+        backdrop-filter: blur(12px);
+        opacity: 0.88;
+        transition: opacity 0.15s, transform 0.15s, border-color 0.15s, background 0.15s;
+      }
+      .orb-card.expanded {
+        opacity: 1;
+        border-color: rgba(103, 232, 249, 0.9);
+        background: rgba(12, 20, 36, 0.94);
+        transform: translate(-50%, -148%);
+      }
+      .orb-title {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #67e8f9;
+      }
+      .orb-body {
+        max-height: 0;
+        margin-top: 0;
+        overflow: hidden;
+        font-size: 13px;
+        line-height: 1.5;
+        color: #cbd5e1;
+        opacity: 0;
+        transition: max-height 0.18s, margin-top 0.18s, opacity 0.18s;
+      }
+      .orb-card.expanded .orb-body {
+        max-height: 160px;
+        margin-top: 8px;
+        opacity: 1;
+      }
+      .orb-editor {
+        position: absolute; left: 16px; top: 64px;
+        width: min(360px, calc(100vw - 32px));
+        padding: 16px;
+        border-radius: 18px;
+        border: 1px solid rgba(34, 211, 238, 0.35);
+        background: rgba(8, 15, 28, 0.92);
+        box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(16px);
+        color: #e5e7eb;
+        pointer-events: auto;
+        display: none;
+      }
+      .orb-editor.show { display: block; }
+      .orb-editor h2 {
+        margin: 0 0 6px;
+        font-size: 16px;
+        color: #f8fafc;
+      }
+      .orb-editor p {
+        margin: 0 0 14px;
+        font-size: 12px;
+        line-height: 1.5;
+        color: #94a3b8;
+      }
+      .orb-editor label {
+        display: block;
+        margin-top: 10px;
+        margin-bottom: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #bae6fd;
+      }
+      .orb-editor input,
+      .orb-editor textarea {
+        width: 100%;
+        border: 1px solid rgba(71, 85, 105, 0.9);
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.96);
+        color: #e5e7eb;
+        padding: 10px 12px;
+        font: inherit;
+      }
+      .orb-editor textarea {
+        min-height: 110px;
+        resize: vertical;
+      }
+      .orb-editor-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .orb-editor button {
+        border: 0;
+        border-radius: 999px;
+        padding: 10px 14px;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .orb-editor button[type="submit"] {
+        background: linear-gradient(135deg, #22d3ee, #2563eb);
+        color: #020617;
+      }
+      .orb-editor button[type="button"] {
+        background: rgba(30, 41, 59, 0.95);
+        color: #cbd5e1;
+        border: 1px solid rgba(71, 85, 105, 0.9);
       }
       #hud {
         position: fixed; left: 16px; bottom: 16px; z-index: 10;
@@ -67,6 +182,7 @@
     <div id="gesture-state">IDLE</div>
     <div id="hud">
       <div><b>Gesture — manipulation</b> (1 pinch = move + twist · 2 pinch = scale)</div>
+      <div><b>3-finger pinch</b> creates an orb with saved title + description</div>
       <div><kbd>P</kbd> point · <kbd>G</kbd> grab · <kbd>← ↑ ↓ →</kbd> move</div>
       <div><kbd>Q</kbd>/<kbd>E</kbd> yaw · <kbd>R</kbd>/<kbd>F</kbd> pitch · <kbd>C</kbd>/<kbd>V</kbd> roll · <kbd>Z</kbd>/<kbd>X</kbd> or wheel = zoom</div>
     </div>

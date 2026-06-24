@@ -9,6 +9,7 @@ import type { HandObservation, GestureState } from './gestureDetector';
 import { GestureController } from './gestureController';
 import type { Mode } from './gestureController';
 import type { Consumer } from './types';
+import { clearStoredOrbs } from '../../info/data/orbStore';
 
 /**
  * Bootstrap. Phase 0: consumer + keyboard fallback. Phase 1: also start the
@@ -16,6 +17,8 @@ import type { Consumer } from './types';
  * tracking is additive — if the camera fails, the keyboard fallback still runs.
  */
 async function main(): Promise<void> {
+  if (clearIndicatorsFromQuery()) return;
+
   const container = document.getElementById('scene');
   const overlayCanvas = document.getElementById('overlay') as HTMLCanvasElement | null;
   const statusEl = document.getElementById('status');
@@ -130,8 +133,10 @@ function toTint(hands: HandObservation[], mode: Mode): GestureState {
   return {
     point: mode === 'point',
     pinch: active,
+    createPose: false,
     cursor,
     pinchRatio: hands[0]?.pinchRatio ?? 1,
+    createPoseRatio: hands[0]?.createPoseRatio ?? 1,
   };
 }
 
@@ -152,6 +157,22 @@ function showToast(message: string, opts: { error?: boolean; durationMs?: number
   toastTimer = window.setTimeout(() => {
     el.className = el.className.replace('show', '').trim();
   }, opts.durationMs ?? 4000);
+}
+
+function clearIndicatorsFromQuery(): boolean {
+  const params = new URLSearchParams(location.search);
+  if (!params.has('clearIndicators')) return false;
+  clearStoredOrbs();
+  document.body.innerHTML = `
+    <main style="min-height:100vh;display:grid;place-items:center;background:#020617;color:#e2e8f0;font-family:ui-sans-serif,system-ui,sans-serif;padding:24px;text-align:center;">
+      <div>
+        <h1 style="margin:0 0 12px;font-size:28px;">Indicators cleared</h1>
+        <p style="margin:0 0 18px;color:#94a3b8;">All saved orbs were removed from browser storage for this app origin.</p>
+        <a href="/" style="display:inline-block;padding:10px 16px;border-radius:999px;background:#22d3ee;color:#082f49;text-decoration:none;font-weight:700;">Open ClipVIS</a>
+      </div>
+    </main>
+  `;
+  return true;
 }
 
 void main();

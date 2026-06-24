@@ -31,7 +31,14 @@ function openHand(): HandLandmarks {
 
 describe('gestureDetector', () => {
   it('returns neutral state for an empty frame', () => {
-    expect(detect([])).toEqual({ point: false, pinch: false, cursor: null, pinchRatio: 1 });
+    expect(detect([])).toEqual({
+      point: false,
+      pinch: false,
+      createPose: false,
+      cursor: null,
+      pinchRatio: 1,
+      createPoseRatio: 1,
+    });
   });
 
   it('returns neutral state for a malformed hand (<21 points)', () => {
@@ -55,6 +62,18 @@ describe('gestureDetector', () => {
     expect(state.pinch).toBe(true);
     expect(state.pinchRatio).toBeLessThan(PINCH_THRESHOLD);
     expect(state.cursor).not.toBeNull();
+  });
+
+  it('detects a rock-sign create pose when middle and ring fold onto the thumb', () => {
+    const hand = openHand();
+    hand[LM.THUMB_TIP] = { x: 0.53, y: 0.56, z: 0 };
+    hand[LM.MIDDLE_TIP] = { x: 0.52, y: 0.57, z: 0 };
+    hand[LM.RING_TIP] = { x: 0.54, y: 0.57, z: 0 };
+    hand[LM.PINKY_TIP] = { x: 0.61, y: 0.29, z: 0 };
+    const state = detectHand(hand);
+    expect(state.createPose).toBe(true);
+    expect(state.createPoseRatio).toBeLessThan(PINCH_THRESHOLD);
+    expect(state.point).toBe(false);
   });
 
   it('does NOT pinch for a closed fist (thumb + index tips also close)', () => {

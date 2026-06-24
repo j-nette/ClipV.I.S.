@@ -1,4 +1,11 @@
 import * as THREE from 'three';
+import {
+  ORB_STORAGE_KEY,
+  createStoredOrb,
+  loadStoredOrbs,
+  saveStoredOrbs,
+  type StoredOrb,
+} from '../../../info/data/orbStore';
 import type { Consumer, GestureEvent, NDC, Quat } from '../types';
 
 /**
@@ -11,14 +18,24 @@ import type { Consumer, GestureEvent, NDC, Quat } from '../types';
  * will do later, so behaviour transfers.
  */
 export class StandaloneScene implements Consumer {
+  private static readonly BOX_IDS = ['box-left', 'box-center', 'box-right'] as const;
+
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.PerspectiveCamera;
   private readonly raycaster = new THREE.Raycaster();
+  private readonly infoLayer: HTMLDivElement;
+  private readonly editorEl: HTMLFormElement;
+  private readonly titleInput: HTMLInputElement;
+  private readonly descriptionInput: HTMLTextAreaElement;
 
   private readonly boxes: THREE.Mesh[] = [];
+  private readonly orbs: OrbView[] = [];
   private highlighted: THREE.Mesh | null = null;
   private grabbed: THREE.Mesh | null = null;
+  private hoveredOrb: OrbView | null = null;
+  private editingOrb: OrbView | null = null;
+  private creatingOrb = false;
   /** Last object the user interacted with — the target for rotate/zoom. */
   private focused: THREE.Mesh | null = null;
 
@@ -32,10 +49,14 @@ export class StandaloneScene implements Consumer {
   private readonly grabOffset = new THREE.Vector3();
   /** Scratch vector for the rotation pivot (held point). */
   private readonly pivot = new THREE.Vector3();
+  private readonly orbPoint = new THREE.Vector3();
+  private readonly labelPoint = new THREE.Vector3();
 
   private readonly baseColor = new THREE.Color(0x3b82f6);
   private readonly hoverColor = new THREE.Color(0x22d3ee);
   private readonly grabColor = new THREE.Color(0x22c55e);
+  private readonly orbColor = new THREE.Color(0xf59e0b);
+  private readonly orbHoverColor = new THREE.Color(0xfef08a);
 
   constructor(private readonly container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -43,6 +64,15 @@ export class StandaloneScene implements Consumer {
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     this.renderer.setClearColor(0x000000, 1);
     container.appendChild(this.renderer.domElement);
+
+    this.infoLayer = document.createElement('div');
+    this.infoLayer.className = 'info-layer';
+    container.appendChild(this.infoLayer);
+
+    const editor = this.createEditor();
+    this.editorEl = editor.form;
+    this.titleInput = editor.titleInput;
+    this.descriptionInput = editor.descriptionInput;
 
     this.camera = new THREE.PerspectiveCamera(
       50,
@@ -67,27 +97,35 @@ export class StandaloneScene implements Consumer {
         metalness: 0.1,
       });
       const box = new THREE.Mesh(geo, mat);
+      box.userData.objectId = StandaloneScene.BOX_IDS[i] ?? `box-${i}`;
       box.position.set((i - 1) * 2.2, 0, 0);
       this.boxes.push(box);
       this.scene.add(box);
     }
 
+    this.reloadOrbsFromStorage();
+
     window.addEventListener('resize', this.onResize);
+    window.addEventListener('storage', this.onStorage);
     this.animate();
   }
 
   handle(e: GestureEvent): void {
     switch (e.type) {
       case 'point':
-        this.setHighlight(this.pick(e.ndc));
+        this.setPointTarget(e.ndc);
         break;
       case 'point_end':
         this.setHighlight(null);
+        this.setOrbHover(null);
+        break;
+      case 'orb_create':
+        this.createOrbAt(e.ndc);
         break;
       case 'pinch_start': {
         // Pinch only manipulates when it actually lands on a box. A miss leaves
         // no target, so the ensuing translate/rotate/zoom do nothing.
-        const hit = this.pick(e.ndc);
+        const hit = this.pickBox(e.ndc);
         this.focused = hit;
         if (hit) this.beginDrag(hit, e.ndc);
         break;
@@ -109,10 +147,33 @@ export class StandaloneScene implements Consumer {
 
   // --- interaction helpers -------------------------------------------------
 
-  private pick(ndc: NDC): THREE.Mesh | null {
+  private pickBoxHit(ndc: NDC): BoxHit | null {
     this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), this.camera);
     const hits = this.raycaster.intersectObjects(this.boxes, false);
-    return (hits[0]?.object as THREE.Mesh) ?? null;
+    const hit = hits[0];
+    if (!hit) return null;
+    return { mesh: hit.object as THREE.Mesh, point: hit.point.clone() };
+  }
+
+  private pickBox(ndc: NDC): THREE.Mesh | null {
+    return this.pickBoxHit(ndc)?.mesh ?? null;
+  }
+
+  private pickOrb(ndc: NDC): OrbView | null {
+    if (this.orbs.length === 0) return null;
+    this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), this.camera);
+    const hits = this.raycaster.intersectObjects(
+      this.orbs.map((orb) => orb.mesh),
+      false,
+    );
+    const mesh = hits[0]?.object as THREE.Mesh | undefined;
+    return this.orbs.find((orb) => orb.mesh === mesh) ?? null;
+  }
+
+  private setPointTarget(ndc: NDC): void {
+    const orb = this.pickOrb(ndc);
+    this.setOrbHover(orb);
+    this.setHighlight(orb ? null : this.pickBox(ndc));
   }
 
   private setHighlight(box: THREE.Mesh | null): void {
@@ -186,12 +247,238 @@ export class StandaloneScene implements Consumer {
 
   // --- render loop ---------------------------------------------------------
 
+  private createOrbAt(ndc: NDC): void {
+    if (this.editingOrb || this.creatingOrb) return;
+    const hit = this.pickBoxHit(ndc);
+    if (!hit) return;
+    const localPoint = hit.mesh.worldToLocal(hit.point.clone());
+    const objectId = this.getObjectId(hit.mesh);
+    const orb = this.addOrb(
+      createStoredOrb(
+        { x: hit.point.x, y: hit.point.y, z: hit.point.z },
+        {
+          objectId,
+          localPosition: { x: localPoint.x, y: localPoint.y, z: localPoint.z },
+        },
+      ),
+    );
+    this.openEditor(orb, true);
+  }
+
+  private addOrb(data: StoredOrb): OrbView {
+    const material = new THREE.MeshStandardMaterial({
+      color: this.orbColor.clone(),
+      emissive: this.orbColor.clone().multiplyScalar(0.35),
+      roughness: 0.25,
+      metalness: 0.05,
+    });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.1, 20, 20), material);
+    const parent = this.findObjectById(data.objectId);
+    if (parent && data.localPosition) {
+      mesh.position.set(data.localPosition.x, data.localPosition.y, data.localPosition.z);
+      parent.add(mesh);
+    } else {
+      mesh.position.set(data.position.x, data.position.y, data.position.z);
+      this.scene.add(mesh);
+    }
+
+    const label = document.createElement('div');
+    label.className = 'orb-card';
+    const title = document.createElement('div');
+    title.className = 'orb-title';
+    const body = document.createElement('div');
+    body.className = 'orb-body';
+    label.append(title, body);
+    this.infoLayer.appendChild(label);
+
+    const orb: OrbView = { anchor: parent, data, mesh, label, title, body };
+    this.updateOrbLabel(orb);
+    this.orbs.push(orb);
+    return orb;
+  }
+
+  private removeOrb(orb: OrbView): void {
+    const index = this.orbs.indexOf(orb);
+    if (index >= 0) this.orbs.splice(index, 1);
+    if (this.hoveredOrb === orb) this.hoveredOrb = null;
+    if (this.editingOrb === orb) this.editingOrb = null;
+    orb.mesh.parent?.remove(orb.mesh);
+    orb.mesh.geometry.dispose();
+    (orb.mesh.material as THREE.MeshStandardMaterial).dispose();
+    orb.label.remove();
+  }
+
+  private reloadOrbsFromStorage(): void {
+    this.clearOrbViews();
+    for (const orb of loadStoredOrbs()) {
+      this.addOrb(orb);
+    }
+  }
+
+  private clearOrbViews(): void {
+    for (const orb of [...this.orbs]) {
+      this.removeOrb(orb);
+    }
+    this.hoveredOrb = null;
+    this.editingOrb = null;
+    this.creatingOrb = false;
+    this.editorEl.classList.remove('show');
+    this.editorEl.reset();
+  }
+
+  private persistOrbs(): void {
+    saveStoredOrbs(
+      this.orbs.map((orb) => {
+        const worldPosition = orb.mesh.getWorldPosition(this.orbPoint);
+        const anchor = orb.anchor;
+        const localPosition = anchor
+          ? {
+              x: orb.mesh.position.x,
+              y: orb.mesh.position.y,
+              z: orb.mesh.position.z,
+            }
+          : undefined;
+        return {
+          ...orb.data,
+          position: {
+            x: worldPosition.x,
+            y: worldPosition.y,
+            z: worldPosition.z,
+          },
+          objectId: anchor ? this.getObjectId(anchor) : undefined,
+          localPosition,
+        };
+      }),
+    );
+  }
+
+  private findObjectById(objectId: string | undefined): THREE.Mesh | null {
+    if (!objectId) return null;
+    return this.boxes.find((box) => this.getObjectId(box) === objectId) ?? null;
+  }
+
+  private getObjectId(mesh: THREE.Mesh): string {
+    const objectId = mesh.userData.objectId;
+    if (typeof objectId !== 'string') throw new Error('scene object is missing a stable object id');
+    return objectId;
+  }
+
+  private setOrbHover(orb: OrbView | null): void {
+    if (this.hoveredOrb === orb) return;
+    if (this.hoveredOrb) {
+      this.hoveredOrb.label.classList.remove('expanded');
+      this.paintOrb(this.hoveredOrb, this.orbColor);
+    }
+    this.hoveredOrb = orb;
+    if (orb) {
+      orb.label.classList.add('expanded');
+      this.paintOrb(orb, this.orbHoverColor);
+    }
+  }
+
+  private paintOrb(orb: OrbView, color: THREE.Color): void {
+    const mat = orb.mesh.material as THREE.MeshStandardMaterial;
+    mat.color.copy(color);
+    mat.emissive.copy(color).multiplyScalar(0.35);
+  }
+
+  private updateOrbLabel(orb: OrbView): void {
+    orb.title.textContent = orb.data.title.trim() || 'Untitled Orb';
+    orb.body.textContent = orb.data.description.trim() || 'No description yet.';
+  }
+
+  private createEditor(): EditorElements {
+    const form = document.createElement('form');
+    form.className = 'orb-editor';
+    form.innerHTML = `
+      <h2>Orb details</h2>
+      <p>Save a title and description for this point. Hover over the orb later with your index finger to expand it.</p>
+      <label for="orb-title">Title</label>
+      <input id="orb-title" name="title" maxlength="80" placeholder="Scene marker" />
+      <label for="orb-description">Description</label>
+      <textarea id="orb-description" name="description" maxlength="400" placeholder="What should this orb remember?"></textarea>
+      <div class="orb-editor-actions">
+        <button type="submit">Save orb</button>
+        <button type="button">Cancel</button>
+      </div>
+    `;
+    const titleInput = form.querySelector('input[name="title"]');
+    const descriptionInput = form.querySelector('textarea[name="description"]');
+    const cancelButton = form.querySelector('button[type="button"]');
+    if (!(titleInput instanceof HTMLInputElement)) throw new Error('orb title input missing');
+    if (!(descriptionInput instanceof HTMLTextAreaElement)) {
+      throw new Error('orb description input missing');
+    }
+    if (!(cancelButton instanceof HTMLButtonElement)) throw new Error('orb cancel button missing');
+    form.addEventListener('submit', this.onEditorSubmit);
+    cancelButton.addEventListener('click', this.onEditorCancel);
+    this.infoLayer.appendChild(form);
+    return { form, titleInput, descriptionInput };
+  }
+
+  private openEditor(orb: OrbView, creating: boolean): void {
+    this.editingOrb = orb;
+    this.creatingOrb = creating;
+    this.titleInput.value = orb.data.title;
+    this.descriptionInput.value = orb.data.description;
+    this.editorEl.classList.add('show');
+    window.requestAnimationFrame(() => this.titleInput.focus());
+  }
+
+  private closeEditor(): void {
+    this.editingOrb = null;
+    this.creatingOrb = false;
+    this.editorEl.classList.remove('show');
+    this.editorEl.reset();
+  }
+
+  private readonly onEditorSubmit = (event: SubmitEvent): void => {
+    event.preventDefault();
+    if (!this.editingOrb) return;
+    this.editingOrb.data.title = this.titleInput.value.trim();
+    this.editingOrb.data.description = this.descriptionInput.value.trim();
+    this.updateOrbLabel(this.editingOrb);
+    this.persistOrbs();
+    this.closeEditor();
+  };
+
+  private readonly onEditorCancel = (): void => {
+    if (this.creatingOrb && this.editingOrb) {
+      this.removeOrb(this.editingOrb);
+      this.persistOrbs();
+    }
+    this.closeEditor();
+  };
+
+  private updateOrbLabels(): void {
+    const width = this.container.clientWidth;
+    const height = this.container.clientHeight;
+    for (const orb of this.orbs) {
+      if (this.hoveredOrb !== orb) {
+        orb.label.style.display = 'none';
+        continue;
+      }
+      orb.mesh.getWorldPosition(this.labelPoint).project(this.camera);
+      const visible = this.labelPoint.z > -1 && this.labelPoint.z < 1;
+      if (!visible) {
+        orb.label.style.display = 'none';
+        continue;
+      }
+      const x = (this.labelPoint.x * 0.5 + 0.5) * width;
+      const y = (-this.labelPoint.y * 0.5 + 0.5) * height;
+      orb.label.style.display = 'block';
+      orb.label.style.left = `${x}px`;
+      orb.label.style.top = `${y}px`;
+    }
+  }
+
   private animate = (): void => {
     requestAnimationFrame(this.animate);
     for (const box of this.boxes) {
       // Idle spin only while a box is untouched; manual rotate takes over once focused.
       if (box !== this.grabbed && box !== this.focused) box.rotation.y += 0.004;
     }
+    this.updateOrbLabels();
     this.renderer.render(this.scene, this.camera);
   };
 
@@ -202,11 +489,44 @@ export class StandaloneScene implements Consumer {
     this.renderer.setSize(w, h);
   };
 
+  private readonly onStorage = (event: StorageEvent): void => {
+    if (event.storageArea !== window.localStorage) return;
+    if (event.key !== ORB_STORAGE_KEY) return;
+    this.reloadOrbsFromStorage();
+  };
+
   dispose(): void {
     window.removeEventListener('resize', this.onResize);
+    window.removeEventListener('storage', this.onStorage);
+    this.editorEl.removeEventListener('submit', this.onEditorSubmit);
+    const cancelButton = this.editorEl.querySelector('button[type="button"]');
+    if (cancelButton instanceof HTMLButtonElement) {
+      cancelButton.removeEventListener('click', this.onEditorCancel);
+    }
     this.renderer.dispose();
+    this.infoLayer.remove();
     this.container.removeChild(this.renderer.domElement);
   }
+}
+
+interface OrbView {
+  anchor: THREE.Mesh | null;
+  data: StoredOrb;
+  mesh: THREE.Mesh;
+  label: HTMLDivElement;
+  title: HTMLDivElement;
+  body: HTMLDivElement;
+}
+
+interface BoxHit {
+  mesh: THREE.Mesh;
+  point: THREE.Vector3;
+}
+
+interface EditorElements {
+  form: HTMLFormElement;
+  titleInput: HTMLInputElement;
+  descriptionInput: HTMLTextAreaElement;
 }
 
 function clamp(v: number, min: number, max: number): number {

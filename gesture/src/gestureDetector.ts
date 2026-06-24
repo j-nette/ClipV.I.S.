@@ -35,13 +35,23 @@ export const FIST_CURL_THRESHOLD = 0.5;
 export interface GestureState {
   point: boolean;
   pinch: boolean;
+  createPose: boolean;
   /** Index-fingertip position in NDC. Present whenever a hand is visible. */
   cursor: NDC | null;
   /** Normalized thumb–index distance — exposed so the controller can apply hysteresis. */
   pinchRatio: number;
+  /** Largest normalized thumb contact distance used for the rock-sign create pose. */
+  createPoseRatio: number;
 }
 
-const NEUTRAL: GestureState = { point: false, pinch: false, cursor: null, pinchRatio: 1 };
+const NEUTRAL: GestureState = {
+  point: false,
+  pinch: false,
+  createPose: false,
+  cursor: null,
+  pinchRatio: 1,
+  createPoseRatio: 1,
+};
 
 /** Detect gestures for the first hand in a frame (or neutral if none). */
 export function detect(hands: HandLandmarks[]): GestureState {
@@ -54,34 +64,60 @@ export function detect(hands: HandLandmarks[]): GestureState {
 export function detectHand(hand: HandLandmarks): GestureState {
   const handSize = dist(hand[LM.WRIST], hand[LM.MIDDLE_MCP]) || 1e-6;
   const pinchRatio = dist(hand[LM.THUMB_TIP], hand[LM.INDEX_TIP]) / handSize;
+  const createPoseRatio = Math.max(
+    dist(hand[LM.THUMB_TIP], hand[LM.MIDDLE_TIP]),
+    dist(hand[LM.THUMB_TIP], hand[LM.RING_TIP]),
+  ) / handSize;
+  const fist = isFist(hand, handSize);
+  const createPose = isCreatePose(hand, handSize, createPoseRatio, fist);
   // A fist also brings thumb + index tips together, so suppress pinch when the
   // whole hand is curled (all four fingers folded toward their knuckles).
-  const pinch = pinchRatio < PINCH_THRESHOLD && !isFist(hand, handSize);
+  const pinch = pinchRatio < PINCH_THRESHOLD && !createPose && !fist;
 
-  const point = !pinch && isPointing(hand);
+  const point = !pinch && !createPose && isPointing(hand);
 
   // Cursor is available whenever a hand is visible, so the controller can track
   // position through the pinch hysteresis band (not only while a gesture fires).
   const cursor = toNDC(hand[LM.INDEX_TIP]);
 
-  return { point, pinch, cursor, pinchRatio };
+  return { point, pinch, createPose, cursor, pinchRatio, createPoseRatio };
 }
 
 /** True when all four fingers are curled toward their knuckles (a closed fist). */
 function isFist(hand: HandLandmarks, handSize: number): boolean {
-  const curled = (tip: number, mcp: number) =>
-    dist(hand[tip], hand[mcp]) / handSize < FIST_CURL_THRESHOLD;
   return (
-    curled(LM.INDEX_TIP, LM.INDEX_MCP) &&
-    curled(LM.MIDDLE_TIP, LM.MIDDLE_MCP) &&
-    curled(LM.RING_TIP, LM.RING_MCP) &&
-    curled(LM.PINKY_TIP, LM.PINKY_MCP)
+    isCurled(hand, LM.INDEX_TIP, LM.INDEX_MCP, handSize) &&
+    isCurled(hand, LM.MIDDLE_TIP, LM.MIDDLE_MCP, handSize) &&
+    isCurled(hand, LM.RING_TIP, LM.RING_MCP, handSize) &&
+    isCurled(hand, LM.PINKY_TIP, LM.PINKY_MCP, handSize)
   );
+}
+
+function isCurled(hand: HandLandmarks, tip: number, mcp: number, handSize: number): boolean {
+  return dist(hand[tip], hand[mcp]) / handSize < FIST_CURL_THRESHOLD;
+}
+
+function isExtended(hand: HandLandmarks, tip: number, pip: number): boolean {
+  return hand[tip].y < hand[pip].y;
+}
+
+function isCreatePose(
+  hand: HandLandmarks,
+  handSize: number,
+  createPoseRatio: number,
+  fist: boolean,
+): boolean {
+  if (fist) return false;
+  const indexExtended = isExtended(hand, LM.INDEX_TIP, LM.INDEX_PIP);
+  const pinkyExtended = isExtended(hand, LM.PINKY_TIP, LM.PINKY_PIP);
+  const middleCurled = isCurled(hand, LM.MIDDLE_TIP, LM.MIDDLE_MCP, handSize);
+  const ringCurled = isCurled(hand, LM.RING_TIP, LM.RING_MCP, handSize);
+  return indexExtended && pinkyExtended && middleCurled && ringCurled && createPoseRatio < PINCH_THRESHOLD;
 }
 
 /** Index extended while middle/ring/pinky are curled. */
 function isPointing(hand: HandLandmarks): boolean {
-  const indexExtended = hand[LM.INDEX_TIP].y < hand[LM.INDEX_PIP].y;
+  const indexExtended = isExtended(hand, LM.INDEX_TIP, LM.INDEX_PIP);
   const middleCurled = hand[LM.MIDDLE_TIP].y > hand[LM.MIDDLE_PIP].y;
   const ringCurled = hand[LM.RING_TIP].y > hand[LM.RING_PIP].y;
   const pinkyCurled = hand[LM.PINKY_TIP].y > hand[LM.PINKY_PIP].y;
@@ -103,6 +139,8 @@ export interface HandObservation {
   point: boolean;
   pinch: boolean;
   pinchRatio: number;
+  createPose: boolean;
+  createPoseRatio: number;
   /** Index fingertip in NDC (pointer / highlight position). */
   cursor: NDC;
   /** Thumb–index midpoint in NDC — the grab anchor used while pinching. */
@@ -134,6 +172,8 @@ export function observeHand(hand: HandLandmarks, label: string): HandObservation
     point: base.point,
     pinch: base.pinch,
     pinchRatio: base.pinchRatio,
+    createPose: base.createPose,
+    createPoseRatio: base.createPoseRatio,
     cursor: base.cursor ?? index,
     anchor,
     orient: handOrientation(hand),

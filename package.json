@@ -1,0 +1,11 @@
+{
+  "name": "clipvis",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix gesture run dev",
+    "build": "npm --prefix gesture run build",
+    "test": "npm --prefix gesture run test",
+    "typecheck": "npm --prefix gesture run typecheck",
+    "clear:indicators": "node scripts/clear-indicators.mjs"
+  }
+}
