@@ -33,8 +33,9 @@ export const PINCH_THRESHOLD = 0.4;
  * A pinch also requires the index fingertip to be clear of the palm in 3D
  * (distance to the palm center / hand size above this). A fist tucks the
  * fingertip into the palm, so it's rejected even though thumb + index tips touch.
+ * Tuned between observed fist (~0.35) and pinch (~0.6) clearances.
  */
-export const INDEX_PALM_CLEARANCE = 0.6;
+export const INDEX_PALM_CLEARANCE = 0.47;
 
 export interface GestureState {
   point: boolean;
