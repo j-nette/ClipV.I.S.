@@ -13,6 +13,7 @@ function hand(partial: Partial<HandObservation> = {}): HandObservation {
     pinchRatio: 1,
     createPose: false,
     createPoseRatio: 1,
+    thumb: { x: -0.2, y: 0.1 },
     cursor: { x: 0, y: 0 },
     anchor: { x: 0, y: 0 },
     orient: IDENTITY_QUAT,
@@ -116,9 +117,14 @@ describe('GestureController (manipulation)', () => {
 
   it('emits orb_create once when the create pose starts', () => {
     const { controller, events } = makeController();
-    controller.update([hand({ createPoseRatio: 0.2, cursor: { x: 0.3, y: 0.4 } })]);
-    controller.update([hand({ createPoseRatio: 0.25, cursor: { x: 0.31, y: 0.41 } })]);
+    controller.update([
+      hand({ createPoseRatio: 0.2, thumb: { x: 0.12, y: 0.34 }, cursor: { x: 0.3, y: 0.4 } }),
+    ]);
+    controller.update([
+      hand({ createPoseRatio: 0.25, thumb: { x: 0.14, y: 0.35 }, cursor: { x: 0.31, y: 0.41 } }),
+    ]);
     expect(types(events).filter((type) => type === 'orb_create')).toEqual(['orb_create']);
+    expect(events[0]).toEqual({ type: 'orb_create', ndc: { x: 0.12, y: 0.34 } });
   });
 
   it('losing all hands ends an active grab', () => {

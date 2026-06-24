@@ -82,7 +82,7 @@ export class GestureController {
       seen.add(h.label);
       const wasCreate = this.createPoseState.get(h.label) ?? false;
       const nowCreate = this.applyCreatePoseHysteresis(h);
-      if (nowCreate && !wasCreate) this.emit({ type: 'orb_create', ndc: h.cursor });
+      if (nowCreate && !wasCreate) this.emit({ type: 'orb_create', ndc: h.thumb });
       if (this.applyHysteresis(h)) pinching.push(h);
     }
     // Forget hands that disappeared.

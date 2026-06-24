@@ -141,6 +141,8 @@ export interface HandObservation {
   pinchRatio: number;
   createPose: boolean;
   createPoseRatio: number;
+  /** Thumb-tip position in NDC, used as the orb creation point. */
+  thumb: NDC;
   /** Index fingertip in NDC (pointer / highlight position). */
   cursor: NDC;
   /** Thumb–index midpoint in NDC — the grab anchor used while pinching. */
@@ -174,6 +176,7 @@ export function observeHand(hand: HandLandmarks, label: string): HandObservation
     pinchRatio: base.pinchRatio,
     createPose: base.createPose,
     createPoseRatio: base.createPoseRatio,
+    thumb,
     cursor: base.cursor ?? index,
     anchor,
     orient: handOrientation(hand),
