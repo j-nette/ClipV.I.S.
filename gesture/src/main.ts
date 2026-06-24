@@ -8,7 +8,7 @@ import { detectHands, INDEX_PALM_CLEARANCE, PINCH_THRESHOLD } from './gestureDet
 import type { HandObservation, GestureState } from './gestureDetector';
 import { GestureController } from './gestureController';
 import type { Mode } from './gestureController';
-import type { Consumer } from './types';
+import type { Consumer, ManipulationScope } from './types';
 
 /**
  * Bootstrap. Phase 0: consumer + keyboard fallback. Phase 1: also start the
@@ -91,7 +91,7 @@ async function startHandTracking(deps: TrackingDeps): Promise<void> {
       const hands = detectHands(frame.hands, frame.labels);
       overlay?.draw(frame, toTint(hands, controller.state));
       controller.update(hands);
-      updateStateBadge(stateEl, controller.state);
+      updateStateBadge(stateEl, controller.state, controller.scopeState);
       if (debug) updateMetrics(metricsEl, hands);
     });
 
@@ -109,13 +109,14 @@ async function startHandTracking(deps: TrackingDeps): Promise<void> {
 }
 
 /** Reflect the controller's stable gesture mode on the centered HUD badge. */
-function updateStateBadge(el: HTMLElement | null, mode: Mode): void {
+function updateStateBadge(el: HTMLElement | null, mode: Mode, scope: ManipulationScope): void {
   if (!el) return;
+  const all = scope === 'assembly' ? ' ALL' : '';
   if (mode === 'grab') {
-    el.textContent = 'GRAB';
+    el.textContent = `GRAB${all}`;
     el.className = 'pinch';
   } else if (mode === 'scale') {
-    el.textContent = 'SCALE';
+    el.textContent = `SCALE${all}`;
     el.className = 'pinch';
   } else if (mode === 'point') {
     el.textContent = 'POINT';

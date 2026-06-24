@@ -36,16 +36,27 @@ export type HandLandmarks = Landmark[];
  * setSceneState() model-swap channel. Emitted at up to ~30 fps once the camera
  * pipeline lands; in Phase 0 they come from the keyboard fallback.
  */
+/**
+ * What a manipulation acts on: a single focused object (two-finger pinch) or
+ * the whole assembly of objects as a group (three-finger pinch).
+ */
+export type ManipulationScope = 'object' | 'assembly';
+
+/**
+ * Low-level, high-frequency interaction events. Distinct from voice/'s
+ * setSceneState() model-swap channel. Emitted at up to ~30 fps once the camera
+ * pipeline lands; in Phase 0 they come from the keyboard fallback.
+ */
 export type GestureEvent =
   | { type: 'point'; ndc: NDC }
   | { type: 'point_end' }
-  | { type: 'pinch_start'; ndc: NDC }
-  | { type: 'pinch_move'; ndc: NDC }
-  | { type: 'pinch_end' }
-  /** Incremental 3D rotation of the focused object as a delta quaternion. */
-  | { type: 'rotate'; q: Quat }
-  /** Incremental zoom of the focused object. Signed scalar: >0 = zoom in, <0 = zoom out. */
-  | { type: 'zoom'; delta: number };
+  | { type: 'pinch_start'; ndc: NDC; scope: ManipulationScope }
+  | { type: 'pinch_move'; ndc: NDC; scope: ManipulationScope }
+  | { type: 'pinch_end'; scope: ManipulationScope }
+  /** Incremental 3D rotation as a delta quaternion (object or whole assembly). */
+  | { type: 'rotate'; q: Quat; scope: ManipulationScope }
+  /** Incremental zoom. Signed scalar: >0 = zoom in, <0 = zoom out. */
+  | { type: 'zoom'; delta: number; scope: ManipulationScope };
 
 /**
  * A consumer turns gesture events into visuals. StandaloneScene implements this

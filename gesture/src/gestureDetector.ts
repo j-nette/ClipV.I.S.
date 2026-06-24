@@ -37,6 +37,13 @@ export const PINCH_THRESHOLD = 0.22;
  */
 export const INDEX_PALM_CLEARANCE = 0.5;
 
+/**
+ * Three-finger pinch: the middle fingertip also joins the thumb (its distance to
+ * the thumb / hand size below this), turning a two-finger object pinch into an
+ * assembly pinch. A touch looser than PINCH_THRESHOLD since the middle is longer.
+ */
+export const MIDDLE_PINCH_THRESHOLD = 0.32;
+
 export interface GestureState {
   point: boolean;
   pinch: boolean;
@@ -119,6 +126,8 @@ export interface HandObservation {
   pinchRatio: number;
   /** Normalized 3D index-tip-to-palm distance — exposed for tuning the fist guard. */
   indexPalmClearance: number;
+  /** True when the middle fingertip also joins the pinch (thumb+index+middle). */
+  threeFinger: boolean;
   /** Index fingertip in NDC (pointer / highlight position). */
   cursor: NDC;
   /** Thumb–index midpoint in NDC — the grab anchor used while pinching. */
@@ -145,12 +154,19 @@ export function observeHand(hand: HandLandmarks, label: string): HandObservation
   const index = toNDC(hand[LM.INDEX_TIP]);
   const anchor = { x: (thumb.x + index.x) / 2, y: (thumb.y + index.y) / 2 };
 
+  // Three-finger pinch: middle tip also close to the thumb (only meaningful
+  // while the basic thumb+index pinch holds).
+  const handSize = dist(hand[LM.WRIST], hand[LM.MIDDLE_MCP]) || 1e-6;
+  const thumbMiddle = dist(hand[LM.THUMB_TIP], hand[LM.MIDDLE_TIP]) / handSize;
+  const threeFinger = base.pinch && thumbMiddle < MIDDLE_PINCH_THRESHOLD;
+
   return {
     label,
     point: base.point,
     pinch: base.pinch,
     pinchRatio: base.pinchRatio,
     indexPalmClearance: base.indexPalmClearance,
+    threeFinger,
     cursor: base.cursor ?? index,
     anchor,
     orient: handOrientation(hand),

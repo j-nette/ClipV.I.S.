@@ -12,6 +12,7 @@ function hand(partial: Partial<HandObservation> = {}): HandObservation {
     pinch: false,
     pinchRatio: 1,
     indexPalmClearance: 1,
+    threeFinger: false,
     cursor: { x: 0, y: 0 },
     anchor: { x: 0, y: 0 },
     orient: IDENTITY_QUAT,
@@ -41,6 +42,36 @@ describe('GestureController (manipulation)', () => {
     controller.update([hand({ pinchRatio: 0.2, anchor: { x: 0.2, y: 0.2 } })]);
     expect(controller.state).toBe('grab');
     expect(types(events)).toEqual(['pinch_start', 'pinch_move']);
+  });
+
+  it('two-finger grab targets a single object (scope=object)', () => {
+    const { controller, events } = makeController();
+    controller.update([hand({ pinchRatio: 0.2, threeFinger: false })]);
+    expect(controller.scopeState).toBe('object');
+    const start = events.find((e) => e.type === 'pinch_start');
+    if (start && start.type === 'pinch_start') expect(start.scope).toBe('object');
+  });
+
+  it('three-finger grab targets the whole assembly (scope=assembly)', () => {
+    const { controller, events } = makeController();
+    controller.update([hand({ pinchRatio: 0.2, threeFinger: true })]);
+    expect(controller.state).toBe('grab');
+    expect(controller.scopeState).toBe('assembly');
+    const start = events.find((e) => e.type === 'pinch_start');
+    expect(start).toBeDefined();
+    if (start && start.type === 'pinch_start') expect(start.scope).toBe('assembly');
+  });
+
+  it('three-finger two-hand scale targets the assembly', () => {
+    const { controller, events } = makeController();
+    const h = (label: string, x: number) =>
+      hand({ label, pinchRatio: 0.2, threeFinger: true, anchor: { x, y: 0 } });
+    controller.update([h('Left', -0.1), h('Right', 0.1)]);
+    controller.update([h('Left', -0.15), h('Right', 0.15)]);
+    expect(controller.state).toBe('scale');
+    expect(controller.scopeState).toBe('assembly');
+    const zoom = events.find((e) => e.type === 'zoom');
+    if (zoom && zoom.type === 'zoom') expect(zoom.scope).toBe('assembly');
   });
 
   it('twisting the hand while grabbing emits a 3D rotation', () => {

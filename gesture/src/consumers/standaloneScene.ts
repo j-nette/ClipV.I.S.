@@ -32,6 +32,8 @@ export class StandaloneScene implements Consumer {
   private readonly grabOffset = new THREE.Vector3();
   /** Scratch vector for the rotation pivot (held point). */
   private readonly pivot = new THREE.Vector3();
+  /** Previous anchor world point while dragging the whole assembly (3-finger). */
+  private assemblyPrev: THREE.Vector3 | null = null;
 
   private readonly baseColor = new THREE.Color(0x3b82f6);
   private readonly hoverColor = new THREE.Color(0x22d3ee);
@@ -85,6 +87,10 @@ export class StandaloneScene implements Consumer {
         this.setHighlight(null);
         break;
       case 'pinch_start': {
+        if (e.scope === 'assembly') {
+          this.beginAssemblyDrag(e.ndc);
+          break;
+        }
         // Pinch only manipulates when it actually lands on a box. A miss leaves
         // no target, so the ensuing translate/rotate/zoom do nothing.
         const hit = this.pick(e.ndc);
@@ -93,16 +99,20 @@ export class StandaloneScene implements Consumer {
         break;
       }
       case 'pinch_move':
-        if (this.grabbed) this.moveDrag(e.ndc);
+        if (e.scope === 'assembly') this.moveAssembly(e.ndc);
+        else if (this.grabbed) this.moveDrag(e.ndc);
         break;
       case 'pinch_end':
-        this.endDrag();
+        if (e.scope === 'assembly') this.endAssemblyDrag();
+        else this.endDrag();
         break;
       case 'rotate':
-        this.applyRotate(e.q);
+        if (e.scope === 'assembly') this.rotateAssembly(e.q);
+        else this.applyRotate(e.q);
         break;
       case 'zoom':
-        this.applyZoom(e.delta);
+        if (e.scope === 'assembly') this.zoomAssembly(e.delta);
+        else this.applyZoom(e.delta);
         break;
     }
   }
@@ -176,6 +186,67 @@ export class StandaloneScene implements Consumer {
     if (!this.focused) return;
     const s = clamp(this.focused.scale.x * (1 + delta), this.minScale, this.maxScale);
     this.focused.scale.setScalar(s);
+  }
+
+  // --- assembly (three-finger) manipulation: all boxes move as a group ------
+
+  /** Centroid of all box positions — the assembly's pivot. */
+  private assemblyCenter(out = new THREE.Vector3()): THREE.Vector3 {
+    out.set(0, 0, 0);
+    for (const b of this.boxes) out.add(b.position);
+    return out.divideScalar(this.boxes.length || 1);
+  }
+
+  private beginAssemblyDrag(ndc: NDC): void {
+    const center = this.assemblyCenter();
+    const normal = this.camera.getWorldDirection(new THREE.Vector3()).negate();
+    this.dragPlane.setFromNormalAndCoplanarPoint(normal, center);
+    this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), this.camera);
+    this.assemblyPrev = new THREE.Vector3();
+    if (!this.raycaster.ray.intersectPlane(this.dragPlane, this.assemblyPrev)) {
+      this.assemblyPrev.copy(center);
+    }
+  }
+
+  /** Translate every box by the anchor's frame-to-frame world delta. */
+  private moveAssembly(ndc: NDC): void {
+    if (!this.assemblyPrev) return;
+    this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), this.camera);
+    if (this.raycaster.ray.intersectPlane(this.dragPlane, this.dragPoint)) {
+      const dx = this.dragPoint.x - this.assemblyPrev.x;
+      const dy = this.dragPoint.y - this.assemblyPrev.y;
+      const dz = this.dragPoint.z - this.assemblyPrev.z;
+      for (const b of this.boxes) b.position.x += dx, (b.position.y += dy), (b.position.z += dz);
+      this.assemblyPrev.copy(this.dragPoint);
+    }
+  }
+
+  private endAssemblyDrag(): void {
+    this.assemblyPrev = null;
+  }
+
+  /** Rotate the whole assembly about its centroid by a delta quaternion. */
+  private rotateAssembly(q: Quat): void {
+    const dq = new THREE.Quaternion(q.x, q.y, q.z, q.w);
+    const center = this.assemblyCenter(this.pivot);
+    const offset = new THREE.Vector3();
+    for (const b of this.boxes) {
+      offset.copy(b.position).sub(center).applyQuaternion(dq);
+      b.position.copy(center).add(offset);
+      b.quaternion.premultiply(dq);
+    }
+  }
+
+  /** Scale the whole assembly about its centroid (spacing + each box, clamped). */
+  private zoomAssembly(delta: number): void {
+    const f = 1 + delta;
+    const center = this.assemblyCenter(this.pivot);
+    const offset = new THREE.Vector3();
+    for (const b of this.boxes) {
+      offset.copy(b.position).sub(center).multiplyScalar(f);
+      b.position.copy(center).add(offset);
+      b.scale.setScalar(clamp(b.scale.x * f, this.minScale, this.maxScale));
+    }
   }
 
   private paint(box: THREE.Mesh, color: THREE.Color): void {
