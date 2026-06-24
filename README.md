@@ -4,7 +4,9 @@
 
 **Bring the thing you're talking about into the room.**
 
-A physical Pepper's Ghost hologram pyramid for your meeting table. Say *"Clippy, show me the Xbox controller"* — a 3D model materializes inside the pyramid, rotating, visible from all sides, while a Clippy mascot narrates with specs from Microsoft Fabric and a real LLM brain. Slideshows show pictures of things. ClipV.I.S. shows the **thing**.
+An interactive Pepper's Ghost hologram for your meeting table. Clippy saw your struggles with engaging and clear meetings, especially those around hardware design. Clippy materialized into 3D space thelps you view and organize your presentation media! 
+
+Say *"Clippy, show me Xbox Controller V2"* and the at-scale part is projected in 3D. Gesture-based commands allow users to interact with information markers, explode assemblies, and toggle between viewing modes. CLippy can also narrate specs from Microsoft Fabric and help answer questions with a a real LLM brain. 
 
 Microsoft Intern Hackathon 2026.
 
@@ -39,11 +41,19 @@ Press **H** for hologram pyramid mode. **New here? Read [`HANDOFF.md`](HANDOFF.m
 | [`hardware/`](hardware/) | Pyramid build notes, BOM, lighting, demo-room checklist |
 | [`demo/`](demo/) | Demo script, backup video, submission package |
 
-## Status (as of `dev/voice-agent`)
+## Features
+- At-scale hologram projection
+- Voice commands
+- Gestures
+  - Index pinch to select object, move, and rotate
+  - "Rock sign" to add information blob
+  - Index point to expand information blob
+- Acrylic laser-cut pyramid with 3D printed enclosure that can be transformed into a light box
 
-✅ real gpt-4o brain · ✅ voice in (Edge + on-device fallback) · ✅ ElevenLabs voice (Charlie) ·
-✅ Clippy mascot · ✅ voice-driven 3D model swap · ✅ hologram pyramid mode · ✅ Fabric wired ·
-✅ text + hotkey fallbacks. See `HANDOFF.md` for details and next steps.
+## Future Projections
+TBD
+
+
 
 ## Team
 
