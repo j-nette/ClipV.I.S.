@@ -1,6 +1,7 @@
 import { gestureBus } from './eventBus';
 import { KeyboardFallback } from './keyboardFallback';
 import { StandaloneScene } from './consumers/standaloneScene';
+import { HologramPresenter } from './consumers/hologramPresenter';
 import { startCamera, CameraError } from './camera';
 import { HandTracker } from './handTracker';
 import { Overlay } from './overlay';
@@ -29,12 +30,16 @@ async function main(): Promise<void> {
   const debug = new URLSearchParams(location.search).has('debug');
   if (debug) document.body.classList.add('debug');
 
-  // Consumer selection. Default is the laptop-screen StandaloneScene.
-  // `?consumer=hologram` will select HologramAdapter once Phase 5 exists.
+  // Consumer selection. Default is now the HologramPresenter: the main gesture
+  // page OWNS the shared ModelState and broadcasts it to the /hologram.html
+  // follower window. The original boxes/orbs demo is at ?consumer=standalone.
   const which = new URLSearchParams(location.search).get('consumer');
-  const consumer: Consumer = which === 'hologram'
-    ? createHologramAdapterStub()
-    : new StandaloneScene(container);
+  const useStandalone = which === 'standalone' || which === 'boxes';
+  const consumer: Consumer = useStandalone
+    ? new StandaloneScene(container)
+    : new HologramPresenter(container);
+
+  if (!useStandalone) setupHologramLauncher();
 
   gestureBus.on((e) => consumer.handle(e));
 
@@ -140,10 +145,13 @@ function toTint(hands: HandObservation[], mode: Mode): GestureState {
   };
 }
 
-/** Placeholder until Phase 5 — keeps the consumer switch type-safe. */
-function createHologramAdapterStub(): Consumer {
-  console.warn('[gesture] HologramAdapter not implemented yet — falling back to no-op consumer.');
-  return { handle: () => {} };
+/** Reveal the "Open hologram window" button (presenter mode) and wire it to
+ *  open the follower page. Drag that window to the external monitor + F11. */
+function setupHologramLauncher(): void {
+  const btn = document.getElementById('open-hologram');
+  if (!(btn instanceof HTMLButtonElement)) return;
+  btn.style.display = 'block';
+  btn.onclick = () => window.open('/hologram.html', 'clipvis-holo', 'width=1280,height=1280');
 }
 
 let toastTimer = 0;

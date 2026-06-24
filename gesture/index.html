@@ -173,11 +173,19 @@
         background: #1f2937; border: 1px solid #374151; border-radius: 4px;
         padding: 1px 6px; font-family: ui-monospace, monospace; font-size: 12px;
       }
+      #open-hologram {
+        position: fixed; right: 16px; bottom: 16px; z-index: 12; display: none;
+        padding: 10px 16px; border: 0; border-radius: 999px; cursor: pointer;
+        font: inherit; font-weight: 700; color: #020617;
+        background: linear-gradient(135deg, #22d3ee, #2563eb);
+        box-shadow: 0 10px 30px rgba(34, 211, 238, 0.3);
+      }
     </style>
   </head>
   <body>
     <div id="scene"></div>
     <canvas id="overlay"></canvas>
+    <button id="open-hologram">🔺 Open hologram window</button>
     <div id="status">starting…</div>
     <div id="gesture-state">IDLE</div>
     <div id="hud">

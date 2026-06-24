@@ -10,6 +10,17 @@ dist/
 build/
 .env
 .env.local
+.env.*
+!.env.example
+
+# Secrets / credentials (never commit real keys)
+*.pem
+*.key
+*.pfx
+*.p12
+*.p8
+credentials.json
+secrets.json
 
 # Python
 __pycache__/

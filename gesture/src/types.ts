@@ -18,6 +18,9 @@ export interface Quat {
   w: number;
 }
 
+/** Canonical model orientations for `snap_view`. */
+export type ViewName = 'front' | 'iso' | 'top' | 'back';
+
 /**
  * A single MediaPipe hand landmark. x/y are normalized image coords in [0, 1]
  * (x left→right, y top→bottom); z is relative depth (smaller = closer).
@@ -46,7 +49,18 @@ export type GestureEvent =
   /** Incremental 3D rotation of the focused object as a delta quaternion. */
   | { type: 'rotate'; q: Quat }
   /** Incremental zoom of the focused object. Signed scalar: >0 = zoom in, <0 = zoom out. */
-  | { type: 'zoom'; delta: number };
+  | { type: 'zoom'; delta: number }
+  // --- hologram model-interaction events (presenter → hologram pipeline) ---
+  /** Exploded-view amount, 0..1 (e.g. two-hand spread). */
+  | { type: 'explode'; factor: number }
+  /** Cycle the render mode: solid → wireframe → xray. */
+  | { type: 'render_mode'; dir: 'next' }
+  /** Snap the model to a canonical orientation. */
+  | { type: 'snap_view'; name: ViewName }
+  /** Toggle the hands-free turntable; optional spin speed (radians/sec). */
+  | { type: 'turntable'; on: boolean; speed?: number }
+  /** Isolate the part at `ndc`, or clear isolation when null. */
+  | { type: 'focus'; ndc: NDC | null };
 
 /**
  * A consumer turns gesture events into visuals. StandaloneScene implements this

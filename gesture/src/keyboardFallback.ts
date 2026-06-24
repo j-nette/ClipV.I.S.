@@ -1,13 +1,13 @@
 import { gestureBus } from './eventBus';
 import { quatFromAxisAngle } from './quat';
-import type { NDC } from './types';
+import type { NDC, ViewName } from './types';
 
 /**
  * Phase 0 input source: drives the exact same GestureEvents the camera pipeline
  * will later emit, but from the keyboard. This is the always-on fallback that
  * ships even if computer vision is cut on Wednesday.
  *
- * Controls:
+ * Manipulation (both the standalone scene and the hologram presenter):
  *   P (hold)      → point at the cursor; release → point_end
  *   G (toggle)    → pinch_start / pinch_end (press to grab, press again to drop)
  *   Arrow keys    → move the cursor (nudges pinch_move while grabbed)
@@ -16,12 +16,28 @@ import type { NDC } from './types';
  *   C / V         → rotate roll (twist)
  *   Z / X         → zoom in / out  (mouse wheel also zooms)
  *
+ * Hologram model features (consumed by the presenter; no-ops in the standalone
+ * scene). NOTE: these intentionally avoid E/R/F/←/→ from the handoff because
+ * those already mean rotate/cursor above — see HANDOFF concern notes.
+ *   B             → explode toggle (0 ↔ 1)
+ *   M             → render mode: solid → wireframe → xray
+ *   Space / T     → turntable toggle
+ *   [ / ]         → snap to previous / next canonical view
+ *   1 / 2 / 3 / 4 → snap to front / iso / top / back
+ *   K             → focus toggle (isolate the part at the cursor, then clear)
+ *
  * The cursor is a virtual pointer in NDC space, since there's no fingertip yet.
  */
+const SNAP_VIEWS: ViewName[] = ['front', 'iso', 'top', 'back'];
+
 export class KeyboardFallback {
   private cursor: NDC = { x: 0, y: 0 };
   private pointing = false;
   private pinching = false;
+  private explodeOn = false;
+  private turntableOn = false;
+  private focusOn = false;
+  private viewIndex = 0;
   private readonly step = 0.06;
   private readonly rotStep = 0.1;
   private readonly zoomStep = 0.08;
@@ -84,13 +100,44 @@ export class KeyboardFallback {
       case 'x':
         gestureBus.emit({ type: 'zoom', delta: -this.zoomStep });
         break;
+      case 'b':
+        this.explodeOn = !this.explodeOn;
+        gestureBus.emit({ type: 'explode', factor: this.explodeOn ? 1 : 0 });
+        break;
+      case 'm':
+        gestureBus.emit({ type: 'render_mode', dir: 'next' });
+        break;
+      case ' ':
+      case 't':
+        this.turntableOn = !this.turntableOn;
+        gestureBus.emit({ type: 'turntable', on: this.turntableOn });
+        break;
+      case '[':
+        this.snap(-1);
+        break;
+      case ']':
+        this.snap(1);
+        break;
+      case '1':
+      case '2':
+      case '3':
+      case '4':
+        this.viewIndex = Number(e.key) - 1;
+        gestureBus.emit({ type: 'snap_view', name: SNAP_VIEWS[this.viewIndex] });
+        break;
+      case 'k':
+        this.focusOn = !this.focusOn;
+        gestureBus.emit({ type: 'focus', ndc: this.focusOn ? { ...this.cursor } : null });
+        break;
       default:
         return;
     }
     if (
-      ['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'p', 'g', 'q', 'e', 'r', 'f', 'c', 'v', 'z', 'x'].includes(
-        e.key.toLowerCase(),
-      )
+      [
+        'arrowleft', 'arrowright', 'arrowup', 'arrowdown',
+        'p', 'g', 'q', 'e', 'r', 'f', 'c', 'v', 'z', 'x',
+        'b', 'm', 't', ' ', '[', ']', '1', '2', '3', '4', 'k',
+      ].includes(e.key.toLowerCase())
     ) {
       e.preventDefault();
     }
@@ -118,6 +165,11 @@ export class KeyboardFallback {
       this.pinching = true;
       gestureBus.emit({ type: 'pinch_start', ndc: { ...this.cursor } });
     }
+  }
+
+  private snap(dir: 1 | -1): void {
+    this.viewIndex = (this.viewIndex + dir + SNAP_VIEWS.length) % SNAP_VIEWS.length;
+    gestureBus.emit({ type: 'snap_view', name: SNAP_VIEWS[this.viewIndex] });
   }
 
   private moveCursor(dx: number, dy: number): void {
