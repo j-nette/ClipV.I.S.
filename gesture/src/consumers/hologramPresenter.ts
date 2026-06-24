@@ -43,6 +43,10 @@ function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
 }
 
+/** Emotes that auto-revert to idle so Clippy always settles back to alive-idle. */
+const TRANSIENT_EMOTES: ReadonlySet<string> = new Set(['wave', 'celebrating', 'confused']);
+const CLIPPY_REVERT_MS = 1800;
+
 export class HologramPresenter implements Consumer {
   private readonly state: ModelState = structuredClone(DEFAULT_STATE);
   private readonly modelScene = new ModelScene();
@@ -59,6 +63,9 @@ export class HologramPresenter implements Consumer {
   private readonly snapQuat = new THREE.Quaternion();
   private snapT = 0;
   private snapping = false;
+
+  /** Timer that reverts a transient Clippy emote back to idle. */
+  private clippyRevertTimer = 0;
 
   // Pinch-drag translation on a camera-facing plane.
   private readonly raycaster = new THREE.Raycaster();
@@ -394,6 +401,25 @@ export class HologramPresenter implements Consumer {
         s.model = next.model;
         s.compareTo = next.compare_to ?? null;
       });
+    w.setClippyState = (action: string) => this.setClippy(action);
+  }
+
+  /** Set Clippy's emote; transient emotes auto-revert to idle so it settles.
+   *  Routed through ModelState so the hologram follower mirrors it (and its
+   *  revert) over holoSync. */
+  private setClippy(action: string): void {
+    const emote = action || 'idle';
+    window.clearTimeout(this.clippyRevertTimer);
+    this.mutate((s) => {
+      s.clippy = emote;
+    });
+    if (TRANSIENT_EMOTES.has(emote)) {
+      this.clippyRevertTimer = window.setTimeout(() => {
+        this.mutate((s) => {
+          s.clippy = 'idle';
+        });
+      }, CLIPPY_REVERT_MS);
+    }
   }
 }
 
@@ -404,4 +430,5 @@ interface HologramWindow extends Window {
   setTurntable(opts: { on: boolean; speed?: number }): void;
   focusPart(partId: string | null): void;
   setModelState(next: { model: string; compare_to?: string | null }): void;
+  setClippyState(action: string): void;
 }
