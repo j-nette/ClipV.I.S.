@@ -135,7 +135,8 @@ function buildPlaceholderClippy() {
   const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.12, 0.12, 0.3);
   const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.12, 0.12, 0.3);
   clippy.add(eyeL, eyeR);
-  clippy.scale.setScalar(0.9);
+  clippyBaseScale = 0.9;
+  clippy.scale.setScalar(clippyBaseScale);
 }
 
 loader.load(
@@ -153,7 +154,15 @@ loader.load(
 );
 
 let clippyState = "idle";
-window.setClippyState = (action) => { clippyState = action || "idle"; };
+let clippyBaseScale = 1;           // group base scale (placeholder uses 0.9, glb uses 1)
+let emoteUntil = 0;                // transient emotes auto-revert to idle after this (ms)
+// How long transient emotes play before Clippy settles back to idle.
+const TRANSIENT_EMOTES = { celebrating: 1800, wave: 1500, confused: 1600, thinking: 2400 };
+window.setClippyState = (action) => {
+  clippyState = action || "idle";
+  const dur = TRANSIENT_EMOTES[clippyState];
+  emoteUntil = dur ? performance.now() + dur : 0;
+};
 
 // ---- The hook the voice agent calls ----
 window.setSceneState = ({ model, compare_to } = {}) => {
@@ -359,15 +368,37 @@ function tick() {
     compareGroup.rotation.y = t * 0.5;
   }
 
-  // Clippy idle bob + state reactions
-  clippy.position.y = 0.8 + Math.sin(t * 2) * 0.06;
-  if (clippyState === "presenting") {
-    clippy.rotation.z = Math.sin(t * 8) * 0.15;
-  } else if (clippyState === "confused") {
-    clippy.rotation.y = Math.sin(t * 12) * 0.3;
-  } else {
-    clippy.rotation.z = Math.sin(t * 1.5) * 0.05;
-    clippy.rotation.y = 0;
+  // Clippy emotes — transient ones auto-revert to idle so he always feels alive.
+  if (emoteUntil && performance.now() > emoteUntil) { clippyState = "idle"; emoteUntil = 0; }
+  const baseY = 0.8;
+  clippy.rotation.set(0, 0, 0);              // reset each frame; emote sets its own transform
+  clippy.scale.setScalar(clippyBaseScale);
+  switch (clippyState) {
+    case "presenting":
+      clippy.position.y = baseY + Math.sin(t * 2) * 0.06;
+      clippy.rotation.z = Math.sin(t * 8) * 0.15;        // eager gesture at the model
+      break;
+    case "celebrating":
+      clippy.position.y = baseY + Math.abs(Math.sin(t * 9)) * 0.35;  // excited hops
+      clippy.rotation.y = t * 6;                                     // joyful spin
+      clippy.scale.setScalar(clippyBaseScale * (1 + Math.sin(t * 18) * 0.08)); // pop
+      break;
+    case "wave":
+      clippy.position.y = baseY + Math.sin(t * 3) * 0.05;
+      clippy.rotation.z = Math.sin(t * 10) * 0.35;       // big friendly wave
+      break;
+    case "thinking":
+      clippy.position.y = baseY + Math.sin(t * 2) * 0.04;
+      clippy.rotation.z = 0.25 + Math.sin(t * 1.2) * 0.08;  // pondering head tilt
+      clippy.rotation.y = Math.sin(t * 0.8) * 0.15;
+      break;
+    case "confused":
+      clippy.position.y = baseY + Math.sin(t * 2) * 0.06;
+      clippy.rotation.y = Math.sin(t * 12) * 0.3;        // quizzical head shake
+      break;
+    default: // idle
+      clippy.position.y = baseY + Math.sin(t * 2) * 0.06;
+      clippy.rotation.z = Math.sin(t * 1.5) * 0.05;
   }
 
   if (pinwheel) renderPinwheel();

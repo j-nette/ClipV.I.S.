@@ -66,7 +66,7 @@ session should be rotated.
   "intent": "show_model | lookup_spec | compare | chat | unknown",
   "model": "<id|null>",
   "compare_to": "<id|null>",
-  "clippy": "presenting | idle | confused",
+  "clippy": "presenting | idle | confused | celebrating | wave | thinking",
   "narration": "<short in-character line>"
 }
 ```
