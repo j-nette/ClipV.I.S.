@@ -11,6 +11,7 @@ function hand(partial: Partial<HandObservation> = {}): HandObservation {
     point: false,
     pinch: false,
     pinchRatio: 1,
+    indexPalmClearance: 1,
     cursor: { x: 0, y: 0 },
     anchor: { x: 0, y: 0 },
     orient: IDENTITY_QUAT,

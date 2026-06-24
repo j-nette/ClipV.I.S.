@@ -31,7 +31,13 @@ function openHand(): HandLandmarks {
 
 describe('gestureDetector', () => {
   it('returns neutral state for an empty frame', () => {
-    expect(detect([])).toEqual({ point: false, pinch: false, cursor: null, pinchRatio: 1 });
+    expect(detect([])).toEqual({
+      point: false,
+      pinch: false,
+      cursor: null,
+      pinchRatio: 1,
+      indexPalmClearance: 0,
+    });
   });
 
   it('returns neutral state for a malformed hand (<21 points)', () => {

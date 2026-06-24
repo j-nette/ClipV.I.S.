@@ -43,9 +43,17 @@ export interface GestureState {
   cursor: NDC | null;
   /** Normalized thumb–index distance — exposed so the controller can apply hysteresis. */
   pinchRatio: number;
+  /** Normalized 3D index-tip-to-palm distance — exposed for tuning the fist guard. */
+  indexPalmClearance: number;
 }
 
-const NEUTRAL: GestureState = { point: false, pinch: false, cursor: null, pinchRatio: 1 };
+const NEUTRAL: GestureState = {
+  point: false,
+  pinch: false,
+  cursor: null,
+  pinchRatio: 1,
+  indexPalmClearance: 0,
+};
 
 /** Detect gestures for the first hand in a frame (or neutral if none). */
 export function detect(hands: HandLandmarks[]): GestureState {
@@ -69,7 +77,7 @@ export function detectHand(hand: HandLandmarks): GestureState {
   // position through the pinch hysteresis band (not only while a gesture fires).
   const cursor = toNDC(hand[LM.INDEX_TIP]);
 
-  return { point, pinch, cursor, pinchRatio };
+  return { point, pinch, cursor, pinchRatio, indexPalmClearance };
 }
 
 /** Approximate palm center: centroid of the wrist and the four finger knuckles. */
@@ -108,6 +116,8 @@ export interface HandObservation {
   point: boolean;
   pinch: boolean;
   pinchRatio: number;
+  /** Normalized 3D index-tip-to-palm distance — exposed for tuning the fist guard. */
+  indexPalmClearance: number;
   /** Index fingertip in NDC (pointer / highlight position). */
   cursor: NDC;
   /** Thumb–index midpoint in NDC — the grab anchor used while pinching. */
@@ -139,6 +149,7 @@ export function observeHand(hand: HandLandmarks, label: string): HandObservation
     point: base.point,
     pinch: base.pinch,
     pinchRatio: base.pinchRatio,
+    indexPalmClearance: base.indexPalmClearance,
     cursor: base.cursor ?? index,
     anchor,
     orient: handOrientation(hand),

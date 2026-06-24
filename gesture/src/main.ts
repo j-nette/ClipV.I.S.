@@ -4,7 +4,7 @@ import { StandaloneScene } from './consumers/standaloneScene';
 import { startCamera, CameraError } from './camera';
 import { HandTracker } from './handTracker';
 import { Overlay } from './overlay';
-import { detectHands } from './gestureDetector';
+import { detectHands, INDEX_PALM_CLEARANCE, PINCH_THRESHOLD } from './gestureDetector';
 import type { HandObservation, GestureState } from './gestureDetector';
 import { GestureController } from './gestureController';
 import type { Mode } from './gestureController';
@@ -20,6 +20,7 @@ async function main(): Promise<void> {
   const overlayCanvas = document.getElementById('overlay') as HTMLCanvasElement | null;
   const statusEl = document.getElementById('status');
   const stateEl = document.getElementById('gesture-state');
+  const metricsEl = document.getElementById('metrics');
   if (!container) throw new Error('#scene container not found');
 
   // `?debug` reveals the skeleton overlay, camera preview, and key help.
@@ -46,7 +47,7 @@ async function main(): Promise<void> {
   new KeyboardFallback().start();
 
   // Camera + hand tracking (additive; keyboard works regardless).
-  await startHandTracking({ overlayCanvas, statusEl, stateEl, debug });
+  await startHandTracking({ overlayCanvas, statusEl, stateEl, metricsEl, debug });
 
   console.info(
     '[gesture] Ready. Add ?debug for skeleton + camera preview. ' +
@@ -58,12 +59,13 @@ interface TrackingDeps {
   overlayCanvas: HTMLCanvasElement | null;
   statusEl: HTMLElement | null;
   stateEl: HTMLElement | null;
+  metricsEl: HTMLElement | null;
   debug: boolean;
 }
 
 /** Starts the webcam + MediaPipe loop, rendering the live skeleton overlay. */
 async function startHandTracking(deps: TrackingDeps): Promise<void> {
-  const { overlayCanvas, statusEl, stateEl, debug } = deps;
+  const { overlayCanvas, statusEl, stateEl, metricsEl, debug } = deps;
   const setStatus = (text: string) => {
     if (statusEl) statusEl.textContent = text;
   };
@@ -90,6 +92,7 @@ async function startHandTracking(deps: TrackingDeps): Promise<void> {
       overlay?.draw(frame, toTint(hands, controller.state));
       controller.update(hands);
       updateStateBadge(stateEl, controller.state);
+      if (debug) updateMetrics(metricsEl, hands);
     });
 
     tracker.start(video);
@@ -132,7 +135,24 @@ function toTint(hands: HandObservation[], mode: Mode): GestureState {
     pinch: active,
     cursor,
     pinchRatio: hands[0]?.pinchRatio ?? 1,
+    indexPalmClearance: hands[0]?.indexPalmClearance ?? 0,
   };
+}
+
+/** Live tuning readout (debug only): per-hand pinch ratio + palm clearance. */
+function updateMetrics(el: HTMLElement | null, hands: HandObservation[]): void {
+  if (!el) return;
+  if (!hands.length) {
+    el.textContent = 'no hand';
+    return;
+  }
+  const lines = hands.map((h) => {
+    const clr = h.indexPalmClearance.toFixed(2);
+    const ratio = h.pinchRatio.toFixed(2);
+    const pass = h.indexPalmClearance > INDEX_PALM_CLEARANCE ? 'OK ' : 'fist';
+    return `${h.label.padEnd(5)} ratio ${ratio}  clear ${clr} ${pass}`;
+  });
+  el.textContent = `pinch<${PINCH_THRESHOLD}  clear>${INDEX_PALM_CLEARANCE}\n${lines.join('\n')}`;
 }
 
 /** Placeholder until Phase 5 — keeps the consumer switch type-safe. */
