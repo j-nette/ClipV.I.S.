@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Consumer, GestureEvent } from '../types';
+import type { Consumer, GestureEvent, ManipulationScope } from '../types';
 import {
   DEFAULT_STATE,
   VIEW_QUATS,
@@ -49,12 +49,15 @@ export class HologramPresenter implements Consumer {
   private snapT = 0;
   private snapping = false;
 
-  // Pinch-drag translation: move the model on a camera-facing plane.
+  // Pinch-drag translation on a camera-facing plane.
   private readonly raycaster = new THREE.Raycaster();
   private readonly dragPlane = new THREE.Plane();
   private readonly dragPoint = new THREE.Vector3();
-  private readonly grabOffset = new THREE.Vector3();
-  private dragging = false;
+  private readonly grabOffset = new THREE.Vector3(); // assembly: model pos − hit
+  private readonly dragStartHit = new THREE.Vector3(); // part: hit point at grab
+  private readonly dragStartOffset = new THREE.Vector3(); // part: offset at grab
+  private dragMode: 'none' | 'assembly' | 'part' = 'none';
+  private dragPartId: string | null = null;
 
   constructor(private readonly container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -123,16 +126,18 @@ export class HologramPresenter implements Consumer {
           s.focusPart = e.ndc ? this.modelScene.pickPartId(e.ndc, this.camera) : null;
         });
         break;
-      // Pinch-drag translates the model so it can be moved around 3D space
-      // (the controller also emits rotate during the same grab).
+      // Two-finger pinch grabs only the part it lands on; three-finger pinch
+      // (scope=assembly) moves the whole model. The controller also emits
+      // rotate during the same grab.
       case 'pinch_start':
-        this.beginDrag(e.ndc);
+        this.beginDrag(e.ndc, e.scope);
         break;
       case 'pinch_move':
-        if (this.dragging) this.moveDrag(e.ndc);
+        this.moveDrag(e.ndc);
         break;
       case 'pinch_end':
-        this.dragging = false;
+        this.dragMode = 'none';
+        this.dragPartId = null;
         break;
       default:
         break;
@@ -158,29 +163,77 @@ export class HologramPresenter implements Consumer {
     this.sync.publish(this.state);
   }
 
-  /** Start a pinch-drag: anchor the grab on a camera-facing plane through the model. */
-  private beginDrag(ndc: { x: number; y: number }): void {
+  /** Start a pinch-drag. Assembly scope moves everything; object scope grabs
+   *  only the part under the pinch (no-op if the pinch misses the model). */
+  private beginDrag(ndc: { x: number; y: number }, scope: ManipulationScope): void {
+    if (scope === 'assembly') {
+      this.beginAssemblyDrag(ndc);
+      return;
+    }
+    const partId = this.modelScene.pickPartId(ndc, this.camera);
+    if (!partId) {
+      this.dragMode = 'none'; // pinch landed off the model — don't grab
+      return;
+    }
+    this.beginPartDrag(ndc, partId);
+  }
+
+  private cameraNormal(out = new THREE.Vector3()): THREE.Vector3 {
+    return this.camera.getWorldDirection(out).negate();
+  }
+
+  /** Drag the whole model (three-finger): translate state.position. */
+  private beginAssemblyDrag(ndc: { x: number; y: number }): void {
     const pos = this.modelScene.pivot.position;
-    const normal = this.camera.getWorldDirection(new THREE.Vector3()).negate();
-    this.dragPlane.setFromNormalAndCoplanarPoint(normal, pos);
+    this.dragPlane.setFromNormalAndCoplanarPoint(this.cameraNormal(), pos);
     this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), this.camera);
     if (this.raycaster.ray.intersectPlane(this.dragPlane, this.dragPoint)) {
       this.grabOffset.copy(pos).sub(this.dragPoint); // hold where pinched
     } else {
       this.grabOffset.set(0, 0, 0);
     }
-    this.dragging = true;
+    this.dragMode = 'assembly';
   }
 
-  /** Translate the model to follow the pinch on the drag plane. */
-  private moveDrag(ndc: { x: number; y: number }): void {
+  /** Drag a single part (two-finger): translate that part's offset. */
+  private beginPartDrag(ndc: { x: number; y: number }, partId: string): void {
+    const worldPos = this.modelScene.partWorldPosition(partId);
+    if (!worldPos) {
+      this.dragMode = 'none';
+      return;
+    }
+    this.dragPlane.setFromNormalAndCoplanarPoint(this.cameraNormal(), worldPos);
     this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), this.camera);
-    if (this.raycaster.ray.intersectPlane(this.dragPlane, this.dragPoint)) {
+    this.raycaster.ray.intersectPlane(this.dragPlane, this.dragStartHit);
+    const cur = this.state.partOffsets[partId];
+    this.dragStartOffset.set(cur?.x ?? 0, cur?.y ?? 0, cur?.z ?? 0);
+    this.dragPartId = partId;
+    this.dragMode = 'part';
+  }
+
+  /** Translate the active drag target to follow the pinch on the drag plane. */
+  private moveDrag(ndc: { x: number; y: number }): void {
+    if (this.dragMode === 'none') return;
+    this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), this.camera);
+    if (!this.raycaster.ray.intersectPlane(this.dragPlane, this.dragPoint)) return;
+
+    if (this.dragMode === 'assembly') {
       const x = this.dragPoint.x + this.grabOffset.x;
       const y = this.dragPoint.y + this.grabOffset.y;
       const z = this.dragPoint.z + this.grabOffset.z;
       this.mutate((s) => {
         s.position = { x, y, z };
+      });
+    } else if (this.dragMode === 'part' && this.dragPartId) {
+      // World delta → local frame (cancel pivot rotation), added to the offset.
+      const worldDelta = this.dragPoint.clone().sub(this.dragStartHit);
+      const local = this.modelScene.worldDeltaToLocal(worldDelta);
+      const id = this.dragPartId;
+      const x = this.dragStartOffset.x + local.x;
+      const y = this.dragStartOffset.y + local.y;
+      const z = this.dragStartOffset.z + local.z;
+      this.mutate((s) => {
+        s.partOffsets = { ...s.partOffsets, [id]: { x, y, z } };
       });
     }
   }

@@ -193,7 +193,39 @@ export class ModelScene {
     // Ease the actual displacement toward the target so explode animates.
     this.explodeAmount += (s.explode - this.explodeAmount) * EXPLODE_SPEED;
     this.applyExplode(this.explodeAmount);
+    this.applyPartOffsets(s.partOffsets);
     this.refreshMaterials(s);
+  }
+
+  /** All pickable part ids currently in the model. */
+  hasPart(partId: string): boolean {
+    return this.parts.some((p) => p.partId === partId);
+  }
+
+  /** World-space position of a part's root (for anchoring a drag plane). */
+  partWorldPosition(partId: string, out = new THREE.Vector3()): THREE.Vector3 | null {
+    const p = this.parts.find((pv) => pv.partId === partId);
+    if (!p) return null;
+    this.pivot.updateMatrixWorld(true);
+    return p.root.getWorldPosition(out);
+  }
+
+  /** Convert a world-space delta into the parts' local frame (cancels pivot rotation). */
+  worldDeltaToLocal(delta: THREE.Vector3, out = new THREE.Vector3()): THREE.Vector3 {
+    this.pivot.updateMatrixWorld(true);
+    const q = this.pivot.getWorldQuaternion(new THREE.Quaternion()).invert();
+    return out.copy(delta).applyQuaternion(q);
+  }
+
+  /** Add each part's persistent drag offset on top of its exploded position. */
+  private applyPartOffsets(offsets: ModelState['partOffsets']): void {
+    for (const p of this.parts) {
+      const o = offsets[p.partId];
+      if (!o) continue;
+      p.root.position.x += o.x;
+      p.root.position.y += o.y;
+      p.root.position.z += o.z;
+    }
   }
 
   /** Raycast a part id from NDC using the provided camera. Null on a miss. */
