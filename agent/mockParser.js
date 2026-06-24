@@ -9,6 +9,25 @@ export function mockParse(userText, currentModel) {
     return unknown();
   }
 
+  // manipulate — voice-driven model transforms (mirrors the gesture API)
+  const MANIP = [
+    { re: /(zoom in|closer|enlarge|bigger|grow|scale up)/, action: "bigger", say: "Zooming in." },
+    { re: /(zoom out|further|smaller|shrink|scale down)/, action: "smaller", say: "Zooming out." },
+    { re: /(rotate|spin|turn).*(left|counter)/, action: "rotate_left", say: "Rotating left." },
+    { re: /(rotate|spin|turn).*(right|clock)/, action: "rotate_right", say: "Rotating right." },
+    { re: /(rotate|spin|turn)/, action: "rotate_right", say: "Spinning it around." },
+    { re: /move.*(left)/, action: "move_left", say: "Moving left." },
+    { re: /move.*(right)/, action: "move_right", say: "Moving right." },
+    { re: /move.*(up)/, action: "move_up", say: "Moving up." },
+    { re: /move.*(down)/, action: "move_down", say: "Moving down." },
+    { re: /(reset|center|recenter|put it back)/, action: "reset", say: "Resetting the view." },
+  ];
+  for (const m of MANIP) {
+    if (m.re.test(t)) {
+      return { intent: "manipulate", model: null, compare_to: null, action: m.action, clippy: "presenting", narration: m.say };
+    }
+  }
+
   // chat / greetings — gives a little Jarvis-style banter even in mock mode
   const greetings = ["hi", "hey", "hello", "yo", "sup", "thanks", "thank you", "how are you", "who are you", "what can you do"];
   if (greetings.some((g) => t === g || t.startsWith(g + " ") || t.includes("how are you") || t.includes("who are you") || t.includes("what can you"))) {

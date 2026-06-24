@@ -42,6 +42,8 @@ async function handleCommand(userText) {
     window.setClippyState(data.clippy || "idle");
     if (data.intent === "show_model" || data.intent === "compare") {
       window.setSceneState({ model: data.model, compare_to: data.compare_to });
+    } else if (data.intent === "manipulate" && window.clipvisGesture) {
+      applyManipulation(data.action);
     }
 
     await speak(data.narration);
@@ -50,6 +52,22 @@ async function handleCommand(userText) {
     els.output.textContent = JSON.stringify({ error: String(err) }, null, 2);
   } finally {
     setStatus("idle");
+  }
+}
+
+// Voice-driven model manipulation -> the same API the gesture team uses.
+function applyManipulation(action) {
+  const g = window.clipvisGesture;
+  switch (action) {
+    case "bigger": case "zoom_in": g.scaleBy(1.3); break;
+    case "smaller": case "zoom_out": g.scaleBy(0.77); break;
+    case "rotate_left": g.rotate(0, -0.5, 0); break;
+    case "rotate_right": g.rotate(0, 0.5, 0); break;
+    case "move_left": g.translate(-0.6, 0, 0); break;
+    case "move_right": g.translate(0.6, 0, 0); break;
+    case "move_up": g.translate(0, 0.6, 0); break;
+    case "move_down": g.translate(0, -0.6, 0); break;
+    case "reset": g.reset(); break;
   }
 }
 
