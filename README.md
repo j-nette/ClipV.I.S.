@@ -4,7 +4,7 @@
 
 **Bring the thing you're talking about into the room.**
 
-An interactive Pepper's Ghost hologram for your meeting table. Clippy saw your struggles with engaging and clear meetings, especially those around hardware design. Clippy materialized into 3D space thelps you view and organize your presentation media! 
+An interactive Pepper's Ghost hologram for your meeting table. Clippy saw your struggles with clear and engaging meetings about hardware so Clippy materialized into 3D space thelps you view and organize your presentation media! (Thanks APC for sharing your pain points!)
 
 Say *"Clippy, show me Xbox Controller V2"* and the at-scale part is projected in 3D. Gesture-based commands allow users to interact with information markers, explode assemblies, and toggle between viewing modes. CLippy can also narrate specs from Microsoft Fabric and help answer questions with a a real LLM brain. 
 
@@ -12,7 +12,9 @@ Microsoft Intern Hackathon 2026.
 
 ---
 
-## 🏃 Run it (works today, no keys needed for mock mode)
+## Prerequisities
+
+## Run it
 
 ```bash
 cd agent
