@@ -1,5 +1,6 @@
 import { gestureBus } from './eventBus';
 import type { HandObservation } from './gestureDetector';
+import { INDEX_PALM_CLEARANCE } from './gestureDetector';
 import type { GestureEvent, NDC, Quat } from './types';
 import { quatMultiply, quatConjugate, quatAngle, quatClampAngle, IDENTITY_QUAT } from './quat';
 
@@ -24,6 +25,8 @@ export interface ControllerOptions {
   pinchOn?: number;
   /** Pinch exits when ratio rises above this (must be > pinchOn). */
   pinchOff?: number;
+  /** Min index-to-palm clearance to count as a pinch (rejects a fist). */
+  palmClearance?: number;
   /** EMA smoothing factor for the grab anchor, 0..1 (higher = more responsive). */
   smoothing?: number;
   /** Min |roll delta| (radians) before a rotate is emitted — kills jitter. */
@@ -39,6 +42,7 @@ export interface ControllerOptions {
 export class GestureController {
   private readonly pinchOn: number;
   private readonly pinchOff: number;
+  private readonly palmClearance: number;
   private readonly alpha: number;
   private readonly rotateDeadzone: number;
   private readonly rotateClamp: number;
@@ -59,6 +63,7 @@ export class GestureController {
   constructor(opts: ControllerOptions = {}) {
     this.pinchOn = opts.pinchOn ?? 0.35;
     this.pinchOff = opts.pinchOff ?? 0.5;
+    this.palmClearance = opts.palmClearance ?? INDEX_PALM_CLEARANCE;
     this.alpha = opts.smoothing ?? 0.5;
     this.rotateDeadzone = opts.rotateDeadzone ?? 0.01;
     this.rotateClamp = opts.rotateClamp ?? 0.3;
@@ -109,11 +114,14 @@ export class GestureController {
 
   /** Updates and returns the hysteretic pinch state for a hand. */
   private applyHysteresis(h: HandObservation): boolean {
+    // The index must stay clear of the palm, or it's a fist (never a pinch).
+    const clear = h.indexPalmClearance > this.palmClearance;
     const was = this.pinchState.get(h.label) ?? false;
     let now = was;
     if (was) {
-      if (h.pinchRatio > this.pinchOff) now = false;
-    } else if (h.pinchRatio < this.pinchOn) {
+      // Release when the fingers open OR the hand curls into a fist.
+      if (h.pinchRatio > this.pinchOff || !clear) now = false;
+    } else if (h.pinchRatio < this.pinchOn && clear) {
       now = true;
     }
     this.pinchState.set(h.label, now);

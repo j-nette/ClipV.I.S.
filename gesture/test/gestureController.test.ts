@@ -113,6 +113,23 @@ describe('GestureController (manipulation)', () => {
     expect(types(events)).toEqual(['point']);
   });
 
+  it('does NOT grab a fist even with tips together (low palm clearance)', () => {
+    const { controller } = makeController(); // palmClearance default 0.6
+    // Tips close (low ratio) but fingertip tucked into palm (low clearance).
+    controller.update([hand({ pinchRatio: 0.1, indexPalmClearance: 0.3 })]);
+    expect(controller.state).toBe('idle');
+  });
+
+  it('releases an active grab if the hand curls into a fist', () => {
+    const { controller, events } = makeController();
+    controller.update([hand({ pinchRatio: 0.1, indexPalmClearance: 0.9 })]); // grab
+    expect(controller.state).toBe('grab');
+    events.length = 0;
+    controller.update([hand({ pinchRatio: 0.1, indexPalmClearance: 0.3 })]); // fist
+    expect(controller.state).toBe('idle');
+    expect(types(events)).toEqual(['pinch_end']);
+  });
+
   it('losing all hands ends an active grab', () => {
     const { controller, events } = makeController();
     controller.update([hand({ pinchRatio: 0.2 })]);
