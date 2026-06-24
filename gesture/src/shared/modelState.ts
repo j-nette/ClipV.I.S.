@@ -23,6 +23,8 @@ export interface ModelState {
   compareTo: string | null;
   /** Model orientation as a quaternion (accumulated from gesture `rotate` deltas). */
   orientation: Quat;
+  /** Model translation offset in world space (from pinch-drag). */
+  position: { x: number; y: number; z: number };
   /** Camera distance (presenter) / ring radius (hologram). */
   zoom: number;
   /** Exploded-view amount, 0..1. */
@@ -41,6 +43,7 @@ export const DEFAULT_STATE: ModelState = {
   model: 'clippy',
   compareTo: null,
   orientation: { ...IDENTITY_QUAT },
+  position: { x: 0, y: 0, z: 0 },
   zoom: 5,
   explode: 0,
   spin: { on: false, speed: 0.6 },

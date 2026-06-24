@@ -49,6 +49,13 @@ export class HologramPresenter implements Consumer {
   private snapT = 0;
   private snapping = false;
 
+  // Pinch-drag translation: move the model on a camera-facing plane.
+  private readonly raycaster = new THREE.Raycaster();
+  private readonly dragPlane = new THREE.Plane();
+  private readonly dragPoint = new THREE.Vector3();
+  private readonly grabOffset = new THREE.Vector3();
+  private dragging = false;
+
   constructor(private readonly container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(window.devicePixelRatio);
@@ -116,8 +123,17 @@ export class HologramPresenter implements Consumer {
           s.focusPart = e.ndc ? this.modelScene.pickPartId(e.ndc, this.camera) : null;
         });
         break;
-      // pinch_start/move/end intentionally do not translate the centered hero
-      // model; the controller already emits rotate/zoom during grab/scale.
+      // Pinch-drag translates the model so it can be moved around 3D space
+      // (the controller also emits rotate during the same grab).
+      case 'pinch_start':
+        this.beginDrag(e.ndc);
+        break;
+      case 'pinch_move':
+        if (this.dragging) this.moveDrag(e.ndc);
+        break;
+      case 'pinch_end':
+        this.dragging = false;
+        break;
       default:
         break;
     }
@@ -140,6 +156,33 @@ export class HologramPresenter implements Consumer {
 
   private publish(): void {
     this.sync.publish(this.state);
+  }
+
+  /** Start a pinch-drag: anchor the grab on a camera-facing plane through the model. */
+  private beginDrag(ndc: { x: number; y: number }): void {
+    const pos = this.modelScene.pivot.position;
+    const normal = this.camera.getWorldDirection(new THREE.Vector3()).negate();
+    this.dragPlane.setFromNormalAndCoplanarPoint(normal, pos);
+    this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), this.camera);
+    if (this.raycaster.ray.intersectPlane(this.dragPlane, this.dragPoint)) {
+      this.grabOffset.copy(pos).sub(this.dragPoint); // hold where pinched
+    } else {
+      this.grabOffset.set(0, 0, 0);
+    }
+    this.dragging = true;
+  }
+
+  /** Translate the model to follow the pinch on the drag plane. */
+  private moveDrag(ndc: { x: number; y: number }): void {
+    this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), this.camera);
+    if (this.raycaster.ray.intersectPlane(this.dragPlane, this.dragPoint)) {
+      const x = this.dragPoint.x + this.grabOffset.x;
+      const y = this.dragPoint.y + this.grabOffset.y;
+      const z = this.dragPoint.z + this.grabOffset.z;
+      this.mutate((s) => {
+        s.position = { x, y, z };
+      });
+    }
   }
 
   /** Begin an eased snap to a canonical view; stops the turntable first. */
