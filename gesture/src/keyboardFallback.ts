@@ -56,6 +56,7 @@ export class KeyboardFallback {
   }
 
   private onKeyDown = (e: KeyboardEvent): void => {
+    if (isTypingTarget()) return;
     switch (e.key.toLowerCase()) {
       case 'p':
         if (!this.pointing) {
@@ -149,6 +150,7 @@ export class KeyboardFallback {
   };
 
   private onKeyUp = (e: KeyboardEvent): void => {
+    if (isTypingTarget()) return;
     if (e.key.toLowerCase() === 'p' && this.pointing) {
       this.pointing = false;
       gestureBus.emit({ type: 'point_end' });
@@ -192,4 +194,12 @@ export class KeyboardFallback {
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
+}
+
+/** True when the user is typing in a field, so gesture keys must stay silent. */
+function isTypingTarget(): boolean {
+  const node = document.activeElement as HTMLElement | null;
+  if (!node) return false;
+  const tag = node.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || node.isContentEditable;
 }
