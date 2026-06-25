@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { GestureController } from '../src/gestureController';
 import type { HandObservation } from '../src/gestureDetector';
 import type { GestureEvent } from '../src/types';
-import { quatFromAxisAngle, quatAngle, IDENTITY_QUAT } from '../src/quat';
+import { quatAngle, IDENTITY_QUAT } from '../src/quat';
 
 /** Build a hand observation; not pinching, not pointing, centered, by default. */
 function hand(partial: Partial<HandObservation> = {}): HandObservation {
@@ -15,6 +15,7 @@ function hand(partial: Partial<HandObservation> = {}): HandObservation {
     createPoseRatio: 1,
     indexPalmClearance: 1,
     threeFinger: false,
+    depth: 0.2,
     cursor: { x: 0, y: 0 },
     anchor: { x: 0, y: 0 },
     orient: IDENTITY_QUAT,
@@ -64,67 +65,86 @@ describe('GestureController (manipulation)', () => {
     if (start && start.type === 'pinch_start') expect(start.scope).toBe('assembly');
   });
 
-  it('three-finger two-hand scale targets the assembly', () => {
+  it('right-hand pinch translates: pinch_start then pinch_move, never rotate', () => {
     const { controller, events } = makeController();
-    const h = (label: string, x: number) =>
-      hand({ label, pinchRatio: 0.2, threeFinger: true, anchor: { x, y: 0 } });
-    controller.update([h('Left', -0.1), h('Right', 0.1)]);
-    controller.update([h('Left', -0.15), h('Right', 0.15)]);
-    expect(controller.state).toBe('scale');
-    expect(controller.scopeState).toBe('assembly');
-    const zoom = events.find((e) => e.type === 'zoom');
-    if (zoom && zoom.type === 'zoom') expect(zoom.scope).toBe('assembly');
-  });
-
-  it('twisting the hand while grabbing emits a 3D rotation', () => {
-    const { controller, events } = makeController();
-    controller.update([hand({ pinchRatio: 0.2, orient: IDENTITY_QUAT })]);
-    events.length = 0;
-    // Rotate the hand 0.2 rad about an arbitrary axis.
-    const twisted = quatFromAxisAngle({ x: 0, y: 1, z: 0 }, 0.2);
-    controller.update([hand({ pinchRatio: 0.2, orient: twisted })]);
-    const rot = events.find((e) => e.type === 'rotate');
-    expect(rot).toBeDefined();
-    if (rot && rot.type === 'rotate') {
-      expect(quatAngle(rot.q)).toBeCloseTo(0.2, 5);
-    }
-  });
-
-  it('does not emit rotate for sub-deadzone twist', () => {
-    const { controller, events } = makeController();
-    controller.update([hand({ pinchRatio: 0.2, orient: IDENTITY_QUAT })]);
-    events.length = 0;
-    const tiny = quatFromAxisAngle({ x: 1, y: 0, z: 0 }, 0.005); // below 0.01 deadzone
-    controller.update([hand({ pinchRatio: 0.2, orient: tiny })]);
+    controller.update([hand({ label: 'Right', pinchRatio: 0.2, anchor: { x: 0.1, y: 0.1 } })]);
+    controller.update([hand({ label: 'Right', pinchRatio: 0.2, anchor: { x: 0.2, y: 0.2 } })]);
+    expect(types(events)).toEqual(['pinch_start', 'pinch_move']);
     expect(events.some((e) => e.type === 'rotate')).toBe(false);
   });
 
-  it('two pinching hands enter scale and zoom in as they move apart', () => {
+  it('left-hand pinch rotates by moving, with no translation', () => {
     const { controller, events } = makeController();
     const left = (x: number) => hand({ label: 'Left', pinchRatio: 0.2, anchor: { x, y: 0 } });
+    controller.update([left(0)]); // session anchors, no emit yet
+    controller.update([left(0.2)]); // moves right → yaw
+    expect(controller.state).toBe('grab');
+    expect(types(events)).not.toContain('pinch_start');
+    expect(types(events)).not.toContain('pinch_move');
+    const rot = events.find((e) => e.type === 'rotate');
+    expect(rot).toBeDefined();
+    if (rot && rot.type === 'rotate') expect(quatAngle(rot.q)).toBeGreaterThan(0);
+  });
+
+  it('left-hand three-finger pinch rotates the whole assembly', () => {
+    const { controller, events } = makeController();
+    const left = (x: number) =>
+      hand({ label: 'Left', pinchRatio: 0.2, threeFinger: true, anchor: { x, y: 0 } });
+    controller.update([left(0)]);
+    controller.update([left(0.2)]);
+    const rot = events.find((e) => e.type === 'rotate');
+    expect(rot).toBeDefined();
+    if (rot && rot.type === 'rotate') expect(rot.scope).toBe('assembly');
+  });
+
+  it('does not rotate for sub-deadzone left-hand movement', () => {
+    const { controller, events } = makeController();
+    const left = (x: number) => hand({ label: 'Left', pinchRatio: 0.2, anchor: { x, y: 0 } });
+    controller.update([left(0)]);
+    events.length = 0;
+    controller.update([left(0.001)]); // tiny move, below deadzone
+    expect(events.some((e) => e.type === 'rotate')).toBe(false);
+  });
+
+  it('emits rotate_start with the hand position, then rotate_end on release', () => {
+    const { controller, events } = makeController();
+    const left = (x: number) => hand({ label: 'Left', pinchRatio: 0.2, anchor: { x, y: 0 } });
+    controller.update([left(0.3)]); // rotation session starts
+    const start = events.find((e) => e.type === 'rotate_start');
+    expect(start).toBeDefined();
+    if (start && start.type === 'rotate_start') expect(start.ndc.x).toBeCloseTo(0.3);
+    controller.update([]); // hand lost → release
+    expect(types(events)).toContain('rotate_end');
+  });
+
+  it('both hands pinching scale (zoom in as they move apart)', () => {
+    const { controller, events } = makeController();
     const right = (x: number) => hand({ label: 'Right', pinchRatio: 0.2, anchor: { x, y: 0 } });
-    controller.update([left(-0.1), right(0.1)]); // dist 0.2
-    controller.update([left(-0.15), right(0.15)]); // dist 0.3 → apart → zoom in
+    const left = (x: number) => hand({ label: 'Left', pinchRatio: 0.2, anchor: { x, y: 0 } });
+    controller.update([right(0.1), left(-0.1)]); // scale starts, dist 0.2
+    controller.update([right(0.2), left(-0.2)]); // dist 0.4 → apart → zoom in
     expect(controller.state).toBe('scale');
     const zoom = events.find((e) => e.type === 'zoom');
     expect(zoom).toBeDefined();
     if (zoom && zoom.type === 'zoom') expect(zoom.delta).toBeGreaterThan(0);
+    expect(types(events)).not.toContain('rotate');
+    expect(types(events)).not.toContain('pinch_move');
   });
 
-  it('moving hands together zooms out', () => {
+  it('moving both hands together zooms out', () => {
     const { controller, events } = makeController();
-    const left = (x: number) => hand({ label: 'Left', pinchRatio: 0.2, anchor: { x, y: 0 } });
     const right = (x: number) => hand({ label: 'Right', pinchRatio: 0.2, anchor: { x, y: 0 } });
-    controller.update([left(-0.2), right(0.2)]); // dist 0.4
+    const left = (x: number) => hand({ label: 'Left', pinchRatio: 0.2, anchor: { x, y: 0 } });
+    controller.update([right(0.2), left(-0.2)]); // dist 0.4
     events.length = 0;
-    controller.update([left(-0.1), right(0.1)]); // dist 0.2 → together → zoom out
+    controller.update([right(0.1), left(-0.1)]); // dist 0.2 → together → zoom out
     const zoom = events.find((e) => e.type === 'zoom');
     if (zoom && zoom.type === 'zoom') expect(zoom.delta).toBeLessThan(0);
   });
 
-  it('grab → scale transition ends the grab before scaling', () => {
+  it('a second hand joining a grab ends the grab before scaling', () => {
     const { controller, events } = makeController();
-    controller.update([hand({ label: 'Right', pinchRatio: 0.2 })]); // grab
+    controller.update([hand({ label: 'Right', pinchRatio: 0.2 })]); // right grab
     events.length = 0;
     controller.update([
       hand({ label: 'Right', pinchRatio: 0.2, anchor: { x: 0.1, y: 0 } }),
@@ -132,6 +152,29 @@ describe('GestureController (manipulation)', () => {
     ]);
     expect(types(events)).toContain('pinch_end');
     expect(controller.state).toBe('scale');
+  });
+
+  it('two-hand scale emits scale_start (midpoint) then scale_end on release', () => {
+    const { controller, events } = makeController();
+    const right = (x: number) => hand({ label: 'Right', pinchRatio: 0.2, anchor: { x, y: 0 } });
+    const left = (x: number) => hand({ label: 'Left', pinchRatio: 0.2, anchor: { x, y: 0 } });
+    controller.update([right(0.2), left(-0.2)]); // scale starts, midpoint x = 0
+    const start = events.find((e) => e.type === 'scale_start');
+    expect(start).toBeDefined();
+    if (start && start.type === 'scale_start') expect(start.ndc.x).toBeCloseTo(0);
+    controller.update([]); // hands lost → release
+    expect(types(events)).toContain('scale_end');
+  });
+
+  it('left hand moving toward the camera rolls the item (depth → rotate)', () => {
+    const { controller, events } = makeController();
+    const left = (depth: number) =>
+      hand({ label: 'Left', pinchRatio: 0.2, depth, anchor: { x: 0, y: 0 } });
+    controller.update([left(0.2)]); // session anchors
+    controller.update([left(0.4)]); // apparent size grows = hand closer → roll
+    const rot = events.find((e) => e.type === 'rotate');
+    expect(rot).toBeDefined();
+    if (rot && rot.type === 'rotate') expect(quatAngle(rot.q)).toBeGreaterThan(0);
   });
 
   it('applies pinch hysteresis per hand', () => {

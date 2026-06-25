@@ -185,6 +185,14 @@ export interface HandObservation {
   indexPalmClearance: number;
   /** True when the middle fingertip also joins the pinch (thumb+index+middle). */
   threeFinger: boolean;
+  /**
+   * Apparent hand size (wrist→middle-knuckle distance in normalized image
+   * coords) used as a robust proxy for distance to the camera: it grows as the
+   * hand moves closer and shrinks as it pulls away. The controller tracks its
+   * frame-to-frame change to drive depth (camera-Z) translation while grabbing.
+   * Far more stable than the raw, wrist-relative landmark z.
+   */
+  depth: number;
   /** Index fingertip in NDC (pointer / highlight position). */
   cursor: NDC;
   /** Thumb–index midpoint in NDC — the grab anchor used while pinching. */
@@ -226,6 +234,7 @@ export function observeHand(hand: HandLandmarks, label: string): HandObservation
     createPoseRatio: base.createPoseRatio,
     indexPalmClearance: base.indexPalmClearance,
     threeFinger,
+    depth: handSize,
     cursor: base.cursor ?? index,
     anchor,
     orient: handOrientation(hand),

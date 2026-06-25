@@ -49,13 +49,22 @@ export type GestureEvent =
   | { type: 'point'; ndc: NDC }
   | { type: 'point_end' }
   | { type: 'pinch_start'; ndc: NDC; scope: ManipulationScope }
-  | { type: 'pinch_move'; ndc: NDC; scope: ManipulationScope }
+  /** `depth` is a per-frame push/pull along the camera's view axis (world units, +away). */
+  | { type: 'pinch_move'; ndc: NDC; depth?: number; scope: ManipulationScope }
   | { type: 'pinch_end'; scope: ManipulationScope }
   | { type: 'orb_create'; ndc: NDC }
+  /** Rotation grab begins; `ndc` is the rotator hand's position to pick a target part. */
+  | { type: 'rotate_start'; ndc: NDC; scope: ManipulationScope }
   /** Incremental 3D rotation as a delta quaternion (object or whole assembly). */
   | { type: 'rotate'; q: Quat; scope: ManipulationScope }
+  /** Rotation grab ends; clears the rotation target. */
+  | { type: 'rotate_end'; scope: ManipulationScope }
+  /** Two-hand scale begins; `ndc` (midpoint) picks the target part for object scope. */
+  | { type: 'scale_start'; ndc: NDC; scope: ManipulationScope }
   /** Incremental zoom. Signed scalar: >0 = zoom in, <0 = zoom out. */
   | { type: 'zoom'; delta: number; scope: ManipulationScope }
+  /** Two-hand scale ends; clears the scale target. */
+  | { type: 'scale_end'; scope: ManipulationScope }
   // --- hologram model-interaction events (presenter → hologram pipeline) ---
   /** Exploded-view amount, 0..1 (e.g. two-hand spread). */
   | { type: 'explode'; factor: number }
