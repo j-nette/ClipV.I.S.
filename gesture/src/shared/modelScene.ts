@@ -30,6 +30,7 @@ type TunableMaterial = THREE.Material & {
   emissive?: THREE.Color;
   emissiveIntensity?: number;
   wireframe?: boolean;
+  map?: THREE.Texture | null;
 };
 
 interface PartSpec {
@@ -434,6 +435,14 @@ export class ModelScene {
       const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       const cloned = list.map((m) => m.clone() as TunableMaterial);
       mesh.material = Array.isArray(mesh.material) ? cloned : cloned[0];
+      // Sharpen textures at grazing angles (glTF textures default to anisotropy 1).
+      for (const m of cloned) {
+        const tex = (m as THREE.MeshStandardMaterial).map;
+        if (tex) {
+          tex.anisotropy = 16;
+          tex.needsUpdate = true;
+        }
+      }
       const partId = mesh.name || `part-${n++}`;
       mesh.userData.partId = partId;
       recenterToCentroid(mesh);
@@ -488,10 +497,16 @@ export class ModelScene {
       const focused = s.focusPart === p.partId;
       const hovered = this.hoverId === p.partId;
       p.mats.forEach((mat, i) => {
-        if (mat.color) mat.color.copy(p.baseColors[i]);
-        if (mat.emissive) {
-          mat.emissive.copy(p.baseColors[i]);
-          mat.emissiveIntensity = focused || hovered ? 0.7 : 0.3;
+        // Placeholder + vertex-colour parts get the signature hologram glow.
+        // Real textured glTF materials keep their own shading — this colour /
+        // emissive wash (designed for the flat-colour boxes) otherwise drowns
+        // the baseColor texture and greys the model out.
+        if (!mat.map) {
+          if (mat.color) mat.color.copy(p.baseColors[i]);
+          if (mat.emissive) {
+            mat.emissive.copy(p.baseColors[i]);
+            mat.emissiveIntensity = focused || hovered ? 0.7 : 0.3;
+          }
         }
 
         let wireframe = false;
