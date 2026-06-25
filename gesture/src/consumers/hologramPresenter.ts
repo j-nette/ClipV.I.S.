@@ -34,6 +34,8 @@ const SNAP_DURATION = 0.6;
 /** Per-part scale clamp (two-hand object scale). */
 const MIN_PART_SCALE = 0.2;
 const MAX_PART_SCALE = 5;
+/** Window after a pinch drops in which a re-grip resumes the same part (ms). */
+const RESUME_GRIP_MS = 300;
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
@@ -66,6 +68,9 @@ export class HologramPresenter implements Consumer {
   private readonly scratchForward = new THREE.Vector3(); // depth push/pull axis
   private dragMode: 'none' | 'assembly' | 'part' = 'none';
   private dragPartId: string | null = null;
+  /** Last part dragged + when its grip dropped, for a sticky re-grip after a slip. */
+  private lastPartId: string | null = null;
+  private lastPartEndMs = 0;
   /** Part the left hand is rotating (picked at rotate_start), independent of the drag. */
   private rotatePartId: string | null = null;
   /** Part being scaled by a two-hand object pinch (picked at scale_start). */
@@ -194,6 +199,12 @@ export class HologramPresenter implements Consumer {
         this.moveDrag(e.ndc, e.depth);
         break;
       case 'pinch_end':
+        // Remember the part briefly so a re-grip right after a slip resumes it
+        // (see beginDrag) instead of snapping to a part behind.
+        if (this.dragMode === 'part' && this.dragPartId) {
+          this.lastPartId = this.dragPartId;
+          this.lastPartEndMs = performance.now();
+        }
         this.dragMode = 'none';
         this.dragPartId = null;
         break;
@@ -233,7 +244,16 @@ export class HologramPresenter implements Consumer {
       this.dragMode = 'none'; // pinch landed off the model — don't grab
       return;
     }
-    this.beginPartDrag(ndc, partId);
+    // Sticky re-grip: if the pinch dropped for a moment (fast move) and is
+    // re-acquired right away, resume the same part even if the new pinch landed
+    // on a different (e.g. occluded) part — prevents the grip slipping behind.
+    const resume =
+      this.lastPartId &&
+      performance.now() - this.lastPartEndMs < RESUME_GRIP_MS &&
+      this.modelScene.hasPart(this.lastPartId)
+        ? this.lastPartId
+        : null;
+    this.beginPartDrag(ndc, resume ?? partId);
   }
 
   private cameraNormal(out = new THREE.Vector3()): THREE.Vector3 {

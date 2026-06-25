@@ -31,6 +31,7 @@ function makeController() {
     pinchOn: 0.35,
     pinchOff: 0.5,
     palmClearance: 0.6,
+    releaseFrames: 1, // release immediately unless a test opts into the debounce
     emit: (e) => events.push(e),
   });
   return { controller, events };
@@ -225,6 +226,25 @@ describe('GestureController (manipulation)', () => {
     // Tips close (low ratio) but fingertip tucked into palm (low clearance).
     controller.update([hand({ pinchRatio: 0.1, indexPalmClearance: 0.3 })]);
     expect(controller.state).toBe('idle');
+  });
+
+  it('keeps the grip through a brief release spike (release debounce)', () => {
+    const events: GestureEvent[] = [];
+    const controller = new GestureController({
+      pinchOn: 0.35,
+      pinchOff: 0.5,
+      palmClearance: 0.6,
+      releaseFrames: 3, // require 3 consecutive release frames
+      emit: (e) => events.push(e),
+    });
+    const right = (ratio: number) => hand({ label: 'Right', pinchRatio: ratio });
+    controller.update([right(0.2)]); // grab
+    expect(controller.state).toBe('grab');
+    controller.update([right(0.7)]); // one-frame motion-blur spike → still grabbing
+    expect(controller.state).toBe('grab');
+    controller.update([right(0.2)]); // re-pinched → grip held throughout
+    expect(controller.state).toBe('grab');
+    expect(types(events)).not.toContain('pinch_end');
   });
 
   it('releases an active grab if the hand curls into a fist', () => {

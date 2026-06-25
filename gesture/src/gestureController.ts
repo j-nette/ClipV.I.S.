@@ -34,6 +34,12 @@ export interface ControllerOptions {
   pinchOff?: number;
   /** Min index-to-palm clearance to count as a pinch (rejects a fist). */
   palmClearance?: number;
+  /**
+   * Frames the release condition must hold before a pinch actually releases.
+   * Bridges brief motion-blur spikes in pinch ratio/clearance during fast moves
+   * so the grip doesn't slip. 1 = release immediately.
+   */
+  releaseFrames?: number;
   /** EMA smoothing factor for anchors, 0..1 (higher = more responsive). */
   smoothing?: number;
   /** Min |left-hand move| (NDC) per frame before a rotate is emitted — kills jitter. */
@@ -68,6 +74,7 @@ export class GestureController {
   private readonly pinchOn: number;
   private readonly pinchOff: number;
   private readonly palmClearance: number;
+  private readonly releaseFrames: number;
   private readonly alpha: number;
   private readonly rotateMoveDeadzone: number;
   private readonly rotateGain: number;
@@ -83,6 +90,8 @@ export class GestureController {
   private mode: Mode = 'idle';
   /** Hysteretic pinch state per hand label. */
   private readonly pinchState = new Map<string, boolean>();
+  /** Consecutive frames the release condition has held, per hand label. */
+  private readonly releaseCount = new Map<string, number>();
   /** Hysteretic create-pose state per hand label. */
   private readonly createPoseState = new Map<string, boolean>();
 
@@ -121,6 +130,7 @@ export class GestureController {
     this.pinchOn = opts.pinchOn ?? PINCH_THRESHOLD;
     this.pinchOff = opts.pinchOff ?? PINCH_THRESHOLD + 0.1;
     this.palmClearance = opts.palmClearance ?? INDEX_PALM_CLEARANCE;
+    this.releaseFrames = Math.max(1, opts.releaseFrames ?? 3);
     this.alpha = opts.smoothing ?? 0.5;
     this.rotateMoveDeadzone = opts.rotateMoveDeadzone ?? 0.004;
     this.rotateGain = opts.rotateGain ?? 2.5;
@@ -163,7 +173,10 @@ export class GestureController {
     }
     // Forget hands that disappeared.
     for (const label of [...this.pinchState.keys()]) {
-      if (!seen.has(label)) this.pinchState.delete(label);
+      if (!seen.has(label)) {
+        this.pinchState.delete(label);
+        this.releaseCount.delete(label);
+      }
     }
     for (const label of [...this.createPoseState.keys()]) {
       if (!seen.has(label)) this.createPoseState.delete(label);
@@ -226,6 +239,7 @@ export class GestureController {
     this.pointActive = false;
     this.mode = 'idle';
     this.pinchState.clear();
+    this.releaseCount.clear();
     this.createPoseState.clear();
   }
 
@@ -245,10 +259,20 @@ export class GestureController {
     const was = this.pinchState.get(h.label) ?? false;
     let now = was;
     if (was) {
-      // Release when the fingers open OR the hand curls into a fist.
-      if (h.pinchRatio > this.pinchOff || !clear) now = false;
+      // Release when the fingers open OR the hand curls into a fist — but only
+      // after the condition persists, so a one-frame motion-blur spike (common
+      // when moving fast) doesn't drop the grip.
+      const releasing = h.pinchRatio > this.pinchOff || !clear;
+      if (releasing) {
+        const c = (this.releaseCount.get(h.label) ?? 0) + 1;
+        this.releaseCount.set(h.label, c);
+        if (c >= this.releaseFrames) now = false;
+      } else {
+        this.releaseCount.set(h.label, 0);
+      }
     } else if (h.pinchRatio < this.pinchOn && clear) {
       now = true;
+      this.releaseCount.set(h.label, 0);
     }
     this.pinchState.set(h.label, now);
     return now;
