@@ -12,19 +12,39 @@ Microsoft Intern Hackathon 2026.
 
 ---
 
-## Prerequisities
+## Prerequisites
+
+- **Node.js 18+** (tested on 20/24) and npm.
+- A modern Chromium browser; **Edge** for the best cloud speech (corp net falls back to on-device).
+- A webcam for hand gestures (optional — keyboard fallbacks cover every gesture).
+- No cloud keys required: the app runs fully in **mock mode** out of the box.
 
 ## Run it
 
+Two processes — the backend agent (LLM/TTS/data) and the gesture frontend:
+
 ```bash
+# Terminal 1 — backend on :3000 (POST /agent, /tts, /assets, /models)
 cd agent
 npm install
-copy .env.example .env   # optional: add keys for the real LLM/voice
-npm start                # http://localhost:3000
+copy .env.example .env   # optional: add keys for the real LLM/voice (else mock mode)
+npm start
+
+# Terminal 2 — gesture frontend on :5173 (presenter + hologram follower)
+cd gesture
+npm install              # postinstall fetches the local MediaPipe model
+npm run dev
 ```
 
-Open http://localhost:3000 → click **Listen** (use **Edge**), or type a command, or press **1–5**.
-Press **H** for hologram pyramid mode. **New here? Read [`HANDOFF.md`](HANDOFF.md) first.**
+Open **http://localhost:5173/** (the **presenter** — the window you drive):
+- Type a command, click a quick-chip, or 🎙️ **Listen** (Edge; auto-falls back to on-device Whisper).
+- *"show me the Xbox controller"* → it appears, Clippy reacts, voice narrates.
+- *"zoom in" · "spin it" · "explode the controller" · "show me the back" · "reset"* → manipulation.
+- Use your hand (pinch/point) or the keyboard for direct manipulation.
+- Click **🔺 Open hologram window** → the four-camera pyramid view (what the audience sees).
+
+> **New here? Read [`HANDOFF.md`](HANDOFF.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) first.**
+> The original single-page voice app still runs at **http://localhost:3000** (`voice/`) as a fallback.
 
 ---
 
@@ -33,15 +53,15 @@ Press **H** for hologram pyramid mode. **New here? Read [`HANDOFF.md`](HANDOFF.m
 | Folder | What's in it |
 |---|---|
 | [`HANDOFF.md`](HANDOFF.md) | **Read first** — current state, how to run, gotchas, next steps. |
-| [`docs/`](docs/) | `project-brief.md` — the master spec. |
-| [`agent/`](agent/) | Backend: LLM brain (GitHub Models), Fabric, TTS, clip-player (Gebril, Neha) |
-| [`voice/`](voice/) | Frontend: 3D hologram scene, voice client, on-device STT (Gebril, Neha) |
-| [`clippy/`](clippy/) | Clippy mascot model + animation notes (Jeanette, Baron, Neha) |
-| [`hologram/`](hologram/) | Pyramid renderer notes (working renderer currently in `voice/scene.js`) (Baron, Claire) |
-| [`gesture/`](gesture/) | Hand-gesture recognition — **stretch goal** (Jeanette, Kevin) |
-| [`models/`](models/) | 3D assets (.glb / .gltf) — drop hero models here |
-| [`hardware/`](hardware/) | Pyramid build notes, BOM, lighting, demo-room checklist |
-| [`demo/`](demo/) | Demo script, backup video, submission package |
+| [`docs/`](docs/) | `ARCHITECTURE.md` (code map + data flow) · `project-brief.md` (master spec). |
+| [`agent/`](agent/) | Backend (Node/Express): LLM brain (GitHub Models), Fabric, TTS, clip-player. |
+| [`gesture/`](gesture/) | **Main frontend** (TS+Vite): presenter + hologram follower, voice bar, hand gestures, Clippy. |
+| [`voice/`](voice/) | **Legacy** single-page voice app (served at :3000 as a fallback). |
+| [`hologram/`](hologram/) | Pyramid renderer notes + `INTEGRATION-HANDOFF.md` (two-display pipeline). |
+| [`clippy/`](clippy/) | Clippy mascot notes (impl now lives in `gesture/src/shared/clippy.ts`). |
+| [`models/`](models/) | 3D assets (.glb) — auto-loaded from `/assets/<id>.glb`. |
+| [`hardware/`](hardware/) | Pyramid CAD + build notes, BOM, lighting, demo-room checklist. |
+| [`demo/`](demo/) | Demo script, poster, backup video, submission package. |
 
 ## Features
 - At-scale hologram projection

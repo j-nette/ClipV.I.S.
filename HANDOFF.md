@@ -1,8 +1,9 @@
 # ClipV.I.S. — Handoff / State of the Build
 
 > Snapshot for anyone (teammate or future session) picking this up.
-> Branch with the consolidated build: **`integrate/voice-clippy-gestures`** (off `main`, which
-> already has the gesture app + Kevin's hand-gesture improvements). Open a PR into `main`.
+> **Status: merged to `main`.** `main` is the single consolidated trunk — gesture app + voice +
+> Clippy + Kevin's hand gestures + the anti-shear fix all live there (PRs #5 and #6). Branch off
+> `main` for new work.
 
 ---
 
