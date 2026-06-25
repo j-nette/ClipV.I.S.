@@ -19,7 +19,7 @@ export interface Quat {
 }
 
 /** Canonical model orientations for `snap_view`. */
-export type ViewName = 'front' | 'iso' | 'top' | 'back';
+export type ViewName = 'front' | 'iso' | 'top' | 'back' | 'right';
 
 /**
  * A single MediaPipe hand landmark. x/y are normalized image coords in [0, 1]

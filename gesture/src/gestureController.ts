@@ -40,8 +40,8 @@ const FOCUS_DWELL_FRAMES = 16;
 const FOCUS_MOVE_TOL = 0.1;
 /** Frames a finger count must be stable before it snaps the view. */
 const SNAP_HOLD_FRAMES = 7;
-/** Snap-view targets, indexed by finger count − 1. */
-const SNAP_VIEWS: ViewName[] = ['front', 'iso', 'top', 'back'];
+/** Snap-view targets, indexed by finger count − 1 (1=front, 2=iso, 3=right, 4=top). */
+const SNAP_VIEWS: ViewName[] = ['front', 'iso', 'right', 'top'];
 /** Thumb→middle ratio below this = contact; above RELEASE = released (a snap/tap). */
 const RENDER_TOUCH = 0.35;
 const RENDER_RELEASE = 0.55;
@@ -610,9 +610,18 @@ export class GestureController {
   private updateRenderMode(hands: HandObservation[]): void {
     if (this.renderCooldown > 0) this.renderCooldown--;
     for (const h of hands) {
-      // Ignore while pinching, or in poses that also touch thumb+middle (three-
-      // finger pinch, rock-sign create) or hide the fingers (fist).
-      if (this.isPinching(h.label) || h.pinch || h.createPose || h.fist) {
+      // Right hand only (left owns finger-count view snaps), and never while
+      // pinching or in poses that also touch thumb+middle (three-finger pinch,
+      // rock-sign), hide the fingers (fist), or are the two-finger swipe — a
+      // 1→2 finger change on the other hand must not read as a snap.
+      if (
+        !this.isTranslator(h.label) ||
+        this.isPinching(h.label) ||
+        h.pinch ||
+        h.createPose ||
+        h.fist ||
+        h.indexMiddle
+      ) {
         this.renderContact.set(h.label, false);
         continue;
       }

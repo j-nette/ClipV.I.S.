@@ -29,7 +29,7 @@ import type { NDC, ViewName, ManipulationScope } from './types';
  *
  * The cursor is a virtual pointer in NDC space, since there's no fingertip yet.
  */
-const SNAP_VIEWS: ViewName[] = ['front', 'iso', 'top', 'back'];
+const SNAP_VIEWS: ViewName[] = ['front', 'iso', 'right', 'top'];
 
 export class KeyboardFallback {
   private cursor: NDC = { x: 0, y: 0 };
