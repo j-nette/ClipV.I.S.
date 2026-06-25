@@ -27,6 +27,10 @@ export interface ModelState {
   position: { x: number; y: number; z: number };
   /** Per-part local translation offsets, keyed by part id (two-finger part drag). */
   partOffsets: Record<string, { x: number; y: number; z: number }>;
+  /** Per-part local rotations, keyed by part id (rotating a single grabbed part). */
+  partRotations: Record<string, Quat>;
+  /** Per-part uniform scale factors, keyed by part id (two-hand object scale). */
+  partScales: Record<string, number>;
   /** Camera distance (presenter) / ring radius (hologram). */
   zoom: number;
   /** Exploded-view amount, 0..1. */
@@ -47,6 +51,8 @@ export const DEFAULT_STATE: ModelState = {
   orientation: { ...IDENTITY_QUAT },
   position: { x: 0, y: 0, z: 0 },
   partOffsets: {},
+  partRotations: {},
+  partScales: {},
   zoom: 5,
   explode: 0,
   spin: { on: false, speed: 0.6 },

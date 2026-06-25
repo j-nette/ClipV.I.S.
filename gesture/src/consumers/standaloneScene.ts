@@ -49,6 +49,8 @@ export class StandaloneScene implements Consumer {
   private readonly grabOffset = new THREE.Vector3();
   /** Scratch vector for the rotation pivot (held point). */
   private readonly pivot = new THREE.Vector3();
+  /** Scratch vector for the camera's view direction (depth push/pull axis). */
+  private readonly camForward = new THREE.Vector3();
   private readonly orbPoint = new THREE.Vector3();
   private readonly labelPoint = new THREE.Vector3();
   /** Previous anchor world point while dragging the whole assembly (3-finger). */
@@ -137,20 +139,38 @@ export class StandaloneScene implements Consumer {
         break;
       }
       case 'pinch_move':
-        if (e.scope === 'assembly') this.moveAssembly(e.ndc);
-        else if (this.grabbed) this.moveDrag(e.ndc);
+        if (e.scope === 'assembly') this.moveAssembly(e.ndc, e.depth);
+        else if (this.grabbed) this.moveDrag(e.ndc, e.depth);
         break;
       case 'pinch_end':
         if (e.scope === 'assembly') this.endAssemblyDrag();
         else this.endDrag();
         break;
+      case 'rotate_start':
+        // Object rotation targets the box under the left hand; assembly needs none.
+        if (e.scope !== 'assembly') {
+          const hit = this.pickBox(e.ndc);
+          if (hit) this.focused = hit;
+        }
+        break;
       case 'rotate':
         if (e.scope === 'assembly') this.rotateAssembly(e.q);
         else this.applyRotate(e.q);
         break;
+      case 'rotate_end':
+        break;
+      case 'scale_start':
+        // Object scale targets the box under the pinch midpoint; assembly = all.
+        if (e.scope !== 'assembly') {
+          const hit = this.pickBox(e.ndc);
+          if (hit) this.focused = hit;
+        }
+        break;
       case 'zoom':
         if (e.scope === 'assembly') this.zoomAssembly(e.delta);
         else this.applyZoom(e.delta);
+        break;
+      case 'scale_end':
         break;
     }
   }
@@ -212,8 +232,13 @@ export class StandaloneScene implements Consumer {
     }
   }
 
-  private moveDrag(ndc: NDC): void {
+  private moveDrag(ndc: NDC, depth = 0): void {
     if (!this.grabbed) return;
+    // Push/pull along the camera's view axis sinks the whole drag plane to a new
+    // depth, so the held point (and X/Y mapping) carry over seamlessly.
+    if (depth !== 0) {
+      this.dragPlane.translate(this.camera.getWorldDirection(this.camForward).multiplyScalar(depth));
+    }
     this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), this.camera);
     if (this.raycaster.ray.intersectPlane(this.dragPlane, this.dragPoint)) {
       this.grabbed.position.copy(this.dragPoint).add(this.grabOffset);
@@ -270,8 +295,13 @@ export class StandaloneScene implements Consumer {
   }
 
   /** Translate every box by the anchor's frame-to-frame world delta. */
-  private moveAssembly(ndc: NDC): void {
+  private moveAssembly(ndc: NDC, depth = 0): void {
     if (!this.assemblyPrev) return;
+    // Sink the drag plane along the camera axis; the resulting frame delta then
+    // carries the depth push/pull into every box alongside the X/Y motion.
+    if (depth !== 0) {
+      this.dragPlane.translate(this.camera.getWorldDirection(this.camForward).multiplyScalar(depth));
+    }
     this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), this.camera);
     if (this.raycaster.ray.intersectPlane(this.dragPlane, this.dragPoint)) {
       const dx = this.dragPoint.x - this.assemblyPrev.x;

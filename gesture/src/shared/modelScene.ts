@@ -47,6 +47,10 @@ interface PartView {
   baseColors: THREE.Color[];
   /** Local resting position (explode displaces from here). */
   originalPos: THREE.Vector3;
+  /** Local resting orientation (per-part rotation composes on top of this). */
+  originalQuat: THREE.Quaternion;
+  /** Local resting scale (per-part scale multiplies this). */
+  originalScale: THREE.Vector3;
   /** Unit outward direction from the model center, in world space at build time. */
   dirWorld: THREE.Vector3;
   /** How far this part already sits from the model center (drives proportional spread). */
@@ -66,6 +70,10 @@ const EXPLODE_SPEED = 0.1;
 
 const _explodeA = new THREE.Vector3();
 const _explodeB = new THREE.Vector3();
+const _deltaInv = new THREE.Matrix4();
+const _deltaA = new THREE.Vector3();
+const _deltaB = new THREE.Vector3();
+const _partQuat = new THREE.Quaternion();
 
 /** Create a PartView; explode fields are baked later by registerExplode(). */
 function newPartView(
@@ -79,6 +87,8 @@ function newPartView(
     mats,
     baseColors,
     originalPos: root.position.clone(),
+    originalQuat: root.quaternion.clone(),
+    originalScale: root.scale.clone(),
     dirWorld: new THREE.Vector3(),
     offsetLen: 0,
     parentInv: new THREE.Matrix4(),
@@ -194,6 +204,8 @@ export class ModelScene {
     this.explodeAmount += (s.explode - this.explodeAmount) * EXPLODE_SPEED;
     this.applyExplode(this.explodeAmount);
     this.applyPartOffsets(s.partOffsets);
+    this.applyPartRotations(s.partRotations);
+    this.applyPartScales(s.partScales);
     this.refreshMaterials(s);
   }
 
@@ -217,6 +229,31 @@ export class ModelScene {
     return out.copy(delta).applyQuaternion(q);
   }
 
+  /**
+   * Convert a world-space drag delta into a part's PARENT-local frame, applying
+   * the parent's rotation AND scale. Part offsets are stored in `p.root.position`
+   * (parent-local), and a loaded glTF sits under a normalization scale
+   * (`obj.scale = 2.2/maxDim`) — so a raw world delta added there is multiplied by
+   * that scale and flings the part away. Transforming the origin and (origin +
+   * delta) through the inverse parent world matrix and subtracting cancels the
+   * parent translation while keeping its rotation+scale. Falls back to the
+   * whole-pivot rotation when the part (or its parent) is unknown.
+   */
+  worldDeltaToPartLocal(
+    partId: string,
+    delta: THREE.Vector3,
+    out = new THREE.Vector3(),
+  ): THREE.Vector3 {
+    const p = this.parts.find((pv) => pv.partId === partId);
+    const parent = p?.root.parent;
+    if (!parent) return this.worldDeltaToLocal(delta, out);
+    this.pivot.updateMatrixWorld(true);
+    _deltaInv.copy(parent.matrixWorld).invert();
+    _deltaA.set(0, 0, 0).applyMatrix4(_deltaInv);
+    _deltaB.copy(delta).applyMatrix4(_deltaInv);
+    return out.copy(_deltaB).sub(_deltaA);
+  }
+
   /** Add each part's persistent drag offset on top of its exploded position. */
   private applyPartOffsets(offsets: ModelState['partOffsets']): void {
     for (const p of this.parts) {
@@ -225,6 +262,23 @@ export class ModelScene {
       p.root.position.x += o.x;
       p.root.position.y += o.y;
       p.root.position.z += o.z;
+    }
+  }
+
+  /** Compose each part's persistent rotation on top of its resting orientation. */
+  private applyPartRotations(rotations: ModelState['partRotations']): void {
+    for (const p of this.parts) {
+      p.root.quaternion.copy(p.originalQuat);
+      const r = rotations?.[p.partId];
+      if (r) p.root.quaternion.premultiply(_partQuat.set(r.x, r.y, r.z, r.w));
+    }
+  }
+
+  /** Multiply each part's persistent scale factor onto its resting scale. */
+  private applyPartScales(scales: ModelState['partScales']): void {
+    for (const p of this.parts) {
+      const f = scales?.[p.partId] ?? 1;
+      p.root.scale.copy(p.originalScale).multiplyScalar(f);
     }
   }
 

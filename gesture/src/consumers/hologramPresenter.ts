@@ -10,7 +10,7 @@ import {
 } from '../shared/modelState';
 import { ModelScene } from '../shared/modelScene';
 import { createPresenterSync, type PresenterSync } from '../shared/holoSync';
-import { quatFromAxisAngle, quatMultiply } from '../quat';
+import { quatFromAxisAngle, quatMultiply, IDENTITY_QUAT } from '../quat';
 
 /**
  * Presenter consumer for the laptop screen — the OWNER of `ModelState`.
@@ -31,6 +31,13 @@ const UP = { x: 0, y: 1, z: 0 };
 const CAMERA_DIR = new THREE.Vector3(0, 0.25, 1).normalize();
 /** Seconds for a snap-to-view animation. */
 const SNAP_DURATION = 0.6;
+/** Per-part scale clamp (two-hand object scale). */
+const MIN_PART_SCALE = 0.2;
+const MAX_PART_SCALE = 5;
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, v));
+}
 
 export class HologramPresenter implements Consumer {
   private readonly state: ModelState = structuredClone(DEFAULT_STATE);
@@ -56,8 +63,13 @@ export class HologramPresenter implements Consumer {
   private readonly grabOffset = new THREE.Vector3(); // assembly: model pos − hit
   private readonly dragStartHit = new THREE.Vector3(); // part: hit point at grab
   private readonly dragStartOffset = new THREE.Vector3(); // part: offset at grab
+  private readonly scratchForward = new THREE.Vector3(); // depth push/pull axis
   private dragMode: 'none' | 'assembly' | 'part' = 'none';
   private dragPartId: string | null = null;
+  /** Part the left hand is rotating (picked at rotate_start), independent of the drag. */
+  private rotatePartId: string | null = null;
+  /** Part being scaled by a two-hand object pinch (picked at scale_start). */
+  private scalePartId: string | null = null;
 
   constructor(private readonly container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -86,16 +98,57 @@ export class HologramPresenter implements Consumer {
 
   handle(e: GestureEvent): void {
     switch (e.type) {
+      case 'rotate_start':
+        // Object rotation needs a target: pick the part under the left hand.
+        this.rotatePartId =
+          e.scope === 'assembly' ? null : this.modelScene.pickPartId(e.ndc, this.camera);
+        break;
       case 'rotate':
         this.snapping = false; // manual rotate takes over from an in-flight snap
-        this.mutate((s) => {
-          s.orientation = quatMultiply(e.q, s.orientation);
-        });
+        // Assembly grab spins the whole model; an object grab rotates only the
+        // part the left hand grabbed. A grab on empty space does nothing.
+        if (e.scope === 'assembly') {
+          this.mutate((s) => {
+            s.orientation = quatMultiply(e.q, s.orientation);
+          });
+        } else {
+          // Prefer the left-hand rotation target; fall back to the held part
+          // (keyboard rotate, or a right-hand grab). No target → do nothing.
+          const id = this.rotatePartId ?? (this.dragMode === 'part' ? this.dragPartId : null);
+          if (id) {
+            this.mutate((s) => {
+              const cur = s.partRotations[id] ?? IDENTITY_QUAT;
+              s.partRotations = { ...s.partRotations, [id]: quatMultiply(e.q, cur) };
+            });
+          }
+        }
+        break;
+      case 'rotate_end':
+        this.rotatePartId = null;
+        break;
+      case 'scale_start':
+        // Object scale targets the part under the pinch midpoint; assembly = whole.
+        this.scalePartId =
+          e.scope === 'assembly' ? null : this.modelScene.pickPartId(e.ndc, this.camera);
         break;
       case 'zoom':
-        this.mutate((s) => {
-          s.zoom = clampZoom(s.zoom * (1 - e.delta));
-        });
+        if (e.scope === 'assembly') {
+          // Assembly scale grows/shrinks the whole model (camera distance).
+          this.mutate((s) => {
+            s.zoom = clampZoom(s.zoom * (1 - e.delta));
+          });
+        } else if (this.scalePartId) {
+          // Object scale resizes just the selected part.
+          const id = this.scalePartId;
+          this.mutate((s) => {
+            const cur = s.partScales[id] ?? 1;
+            const next = clamp(cur * (1 + e.delta), MIN_PART_SCALE, MAX_PART_SCALE);
+            s.partScales = { ...s.partScales, [id]: next };
+          });
+        }
+        break;
+      case 'scale_end':
+        this.scalePartId = null;
         break;
       case 'point':
         this.modelScene.setHover(this.modelScene.pickPartId(e.ndc, this.camera));
@@ -133,7 +186,7 @@ export class HologramPresenter implements Consumer {
         this.beginDrag(e.ndc, e.scope);
         break;
       case 'pinch_move':
-        this.moveDrag(e.ndc);
+        this.moveDrag(e.ndc, e.depth);
         break;
       case 'pinch_end':
         this.dragMode = 'none';
@@ -212,8 +265,13 @@ export class HologramPresenter implements Consumer {
   }
 
   /** Translate the active drag target to follow the pinch on the drag plane. */
-  private moveDrag(ndc: { x: number; y: number }): void {
+  private moveDrag(ndc: { x: number; y: number }, depth = 0): void {
     if (this.dragMode === 'none') return;
+    // Push/pull along the camera's view axis sinks the drag plane to a new
+    // depth; the held point and X/Y mapping then carry over for both scopes.
+    if (depth !== 0) {
+      this.dragPlane.translate(this.camera.getWorldDirection(this.scratchForward).multiplyScalar(depth));
+    }
     this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), this.camera);
     if (!this.raycaster.ray.intersectPlane(this.dragPlane, this.dragPoint)) return;
 
@@ -225,9 +283,10 @@ export class HologramPresenter implements Consumer {
         s.position = { x, y, z };
       });
     } else if (this.dragMode === 'part' && this.dragPartId) {
-      // World delta → local frame (cancel pivot rotation), added to the offset.
+      // World delta → the part's parent-local frame (cancels pivot rotation AND
+      // the glTF normalization scale), added to the offset.
       const worldDelta = this.dragPoint.clone().sub(this.dragStartHit);
-      const local = this.modelScene.worldDeltaToLocal(worldDelta);
+      const local = this.modelScene.worldDeltaToPartLocal(this.dragPartId, worldDelta);
       const id = this.dragPartId;
       const x = this.dragStartOffset.x + local.x;
       const y = this.dragStartOffset.y + local.y;
