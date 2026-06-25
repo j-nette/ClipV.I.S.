@@ -1,7 +1,12 @@
 import type { HandLandmarks } from './types';
 import type { HandTrackerFrame } from './handTracker';
-import type { GestureState } from './gestureDetector';
 import { LM } from './gestureDetector';
+
+/** Per-hand gesture tint, parallel to a frame's hands. */
+export interface HandTint {
+  pinch: boolean;
+  point: boolean;
+}
 
 /** MediaPipe hand skeleton edges (pairs of landmark indices). */
 const HAND_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
@@ -39,14 +44,17 @@ export class Overlay {
     this.canvas.height = this.canvas.clientHeight * devicePixelRatio;
   };
 
-  /** Draw the frame, optionally tinted/annotated by the detected gesture state. */
-  draw(frame: HandTrackerFrame, state?: GestureState): void {
+  /** Draw the frame, tinting each hand by its own gesture state. */
+  draw(frame: HandTrackerFrame, tints?: HandTint[]): void {
     const { width: w, height: h } = this.canvas;
     this.ctx.clearRect(0, 0, w, h);
-    const color = state?.pinch ? COLOR_PINCH : state?.point ? COLOR_POINT : COLOR_IDLE;
-    for (const hand of frame.hands) this.drawHand(hand, w, h, color);
-    if (frame.hands[0] && state && (state.pinch || state.point)) {
-      this.drawCursor(frame.hands[0], w, h, color, state.pinch);
+    for (let i = 0; i < frame.hands.length; i++) {
+      const t = tints?.[i];
+      const color = t?.pinch ? COLOR_PINCH : t?.point ? COLOR_POINT : COLOR_IDLE;
+      this.drawHand(frame.hands[i], w, h, color);
+      if (t && (t.pinch || t.point)) {
+        this.drawCursor(frame.hands[i], w, h, color, t.pinch);
+      }
     }
   }
 

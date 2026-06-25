@@ -6,7 +6,7 @@ import { startCamera, CameraError } from './camera';
 import { HandTracker } from './handTracker';
 import { Overlay } from './overlay';
 import { detectHands, INDEX_PALM_CLEARANCE, PINCH_THRESHOLD } from './gestureDetector';
-import type { HandObservation, GestureState } from './gestureDetector';
+import type { HandObservation } from './gestureDetector';
 import { GestureController } from './gestureController';
 import type { Mode } from './gestureController';
 import type { Consumer, ManipulationScope } from './types';
@@ -94,11 +94,17 @@ async function startHandTracking(deps: TrackingDeps): Promise<void> {
     //   1 pinch  → grab (translate + 3D rotate)
     //   2 pinch  → scale
     //   point    → highlight
-    const controller = new GestureController();
+    const swapHandedness = new URLSearchParams(location.search).has('swaphands');
+    const controller = new GestureController({ swapHandedness });
     tracker.onResults((frame) => {
       const hands = detectHands(frame.hands, frame.labels);
-      overlay?.draw(frame, toTint(hands, controller.state));
       controller.update(hands);
+      // Tint each hand by ITS OWN state: green only when that hand pinches.
+      const tints = hands.map((hnd) => {
+        const pinch = controller.isPinching(hnd.label);
+        return { pinch, point: hnd.point && !pinch };
+      });
+      overlay?.draw(frame, tints);
       updateStateBadge(stateEl, controller.state, controller.scopeState);
       if (debug) updateMetrics(metricsEl, hands);
     });
@@ -133,21 +139,6 @@ function updateStateBadge(el: HTMLElement | null, mode: Mode, scope: Manipulatio
     el.textContent = 'IDLE';
     el.className = '';
   }
-}
-
-/** Build an overlay tint state from the hands + controller mode. */
-function toTint(hands: HandObservation[], mode: Mode): GestureState {
-  const active = mode === 'grab' || mode === 'scale';
-  const cursor = hands[0]?.anchor ?? hands[0]?.cursor ?? null;
-  return {
-    point: mode === 'point',
-    pinch: active,
-    createPose: false,
-    cursor,
-    pinchRatio: hands[0]?.pinchRatio ?? 1,
-    createPoseRatio: hands[0]?.createPoseRatio ?? 1,
-    indexPalmClearance: hands[0]?.indexPalmClearance ?? 0,
-  };
 }
 
 /** Reveal the "Open hologram window" button (presenter mode) and wire it to
