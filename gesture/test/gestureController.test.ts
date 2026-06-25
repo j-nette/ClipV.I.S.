@@ -154,19 +154,33 @@ describe('GestureController (manipulation)', () => {
     expect(controller.state).toBe('scale');
   });
 
-  it('two-hand scale emits scale_start (both pinch points) then scale_end on release', () => {
+  it('two-hand scale picks the hand that pinched first, midpoint as fallback', () => {
     const { controller, events } = makeController();
     const right = (x: number) => hand({ label: 'Right', pinchRatio: 0.2, anchor: { x, y: 0 } });
     const left = (x: number) => hand({ label: 'Left', pinchRatio: 0.2, anchor: { x, y: 0 } });
-    controller.update([right(0.2), left(-0.2)]); // scale starts
+    controller.update([right(0.3)]); // right pinches first (grab)
+    controller.update([right(0.3), left(-0.1)]); // left joins → scale
     const start = events.find((e) => e.type === 'scale_start');
     expect(start).toBeDefined();
     if (start && start.type === 'scale_start') {
-      expect(start.ndc.x).toBeCloseTo(0.2); // right pinch
-      expect(start.ndcB.x).toBeCloseTo(-0.2); // left pinch
+      expect(start.ndc.x).toBeCloseTo(0.3); // first-pinching hand (right)
+      expect(start.ndcMid.x).toBeCloseTo(0.1); // midpoint of 0.3 and -0.1
     }
     controller.update([]); // hands lost → release
     expect(types(events)).toContain('scale_end');
+  });
+
+  it('two hands pinching the same frame fall back to the midpoint', () => {
+    const { controller, events } = makeController();
+    const right = (x: number) => hand({ label: 'Right', pinchRatio: 0.2, anchor: { x, y: 0 } });
+    const left = (x: number) => hand({ label: 'Left', pinchRatio: 0.2, anchor: { x, y: 0 } });
+    controller.update([right(0.2), left(-0.4)]); // both start together
+    const start = events.find((e) => e.type === 'scale_start');
+    expect(start).toBeDefined();
+    if (start && start.type === 'scale_start') {
+      expect(start.ndc.x).toBeCloseTo(-0.1); // no clear first → midpoint
+      expect(start.ndcMid.x).toBeCloseTo(-0.1);
+    }
   });
 
   it('left hand moving toward the camera rolls the item (depth → rotate)', () => {

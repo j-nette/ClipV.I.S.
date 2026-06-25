@@ -176,11 +176,20 @@ export class GestureController {
     // Both hands pinching → scale (distance between them). A single hand keeps
     // translating (right) or rotating (left).
     if (translator && rotator) {
+      // Which hand pinched first? Whichever session was already active before
+      // the second hand joined (captured before we end those sessions).
+      const firstAnchor = this.scaleActive
+        ? null
+        : this.transActive
+          ? { ...translator.anchor }
+          : this.rotActive
+            ? { ...rotator.anchor }
+            : null;
       this.updateTranslation(null); // end any active translate/rotate first
       this.updateRotation(null);
-      this.updateScale(translator, rotator);
+      this.updateScale(translator, rotator, firstAnchor);
     } else {
-      this.updateScale(null, null); // end any active scale
+      this.updateScale(null, null, null); // end any active scale
       this.updateTranslation(translator);
       this.updateRotation(rotator);
     }
@@ -362,7 +371,11 @@ export class GestureController {
   }
 
   /** Two-hand scale: the object grows/shrinks as the pinch anchors move apart. */
-  private updateScale(a: HandObservation | null, b: HandObservation | null): void {
+  private updateScale(
+    a: HandObservation | null,
+    b: HandObservation | null,
+    firstAnchor: NDC | null,
+  ): void {
     if (!a || !b) {
       if (this.scaleActive) {
         this.emit({ type: 'scale_end', scope: this.scaleScope });
@@ -377,8 +390,9 @@ export class GestureController {
       this.scaleScope = a.threeFinger && b.threeFinger ? 'assembly' : 'object';
       this.scope = this.scaleScope;
       this.prevDist = d;
-      // The two pinch points let the consumer pick the part being scaled.
-      this.emit({ type: 'scale_start', ndc: a.anchor, ndcB: b.anchor, scope: this.scaleScope });
+      // Pick by the hand that pinched first; fall back to the midpoint.
+      const mid = { x: (a.anchor.x + b.anchor.x) / 2, y: (a.anchor.y + b.anchor.y) / 2 };
+      this.emit({ type: 'scale_start', ndc: firstAnchor ?? mid, ndcMid: mid, scope: this.scaleScope });
       return;
     }
     if (this.prevDist > 1e-4) {

@@ -127,19 +127,13 @@ export class HologramPresenter implements Consumer {
         this.rotatePartId = null;
         break;
       case 'scale_start': {
-        // Object scale targets the part being gripped. Try each pinch point and
-        // their midpoint; if every ray misses, fall back to the nearest part so
-        // a two-hand grab around a part reliably scales it.
-        if (e.scope === 'assembly') {
-          this.scalePartId = null;
-          break;
-        }
-        const mid = { x: (e.ndc.x + e.ndcB.x) / 2, y: (e.ndc.y + e.ndcB.y) / 2 };
+        // Object scale targets the part the first-pinching hand is on; if that
+        // ray misses, fall back to the midpoint between the two hands.
         this.scalePartId =
-          this.modelScene.pickPartId(mid, this.camera) ??
-          this.modelScene.pickPartId(e.ndc, this.camera) ??
-          this.modelScene.pickPartId(e.ndcB, this.camera) ??
-          this.modelScene.pickNearestPartId(mid, this.camera);
+          e.scope === 'assembly'
+            ? null
+            : (this.modelScene.pickPartId(e.ndc, this.camera) ??
+              this.modelScene.pickPartId(e.ndcMid, this.camera));
         break;
       }
       case 'zoom':
