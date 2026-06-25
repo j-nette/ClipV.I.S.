@@ -42,6 +42,8 @@ declare global {
     snapToView?: (name: 'front' | 'iso' | 'top' | 'back') => void;
     setTurntable?: (opts: { on: boolean; speed?: number }) => void;
     focusPart?: (partId: string | null) => void;
+    nudgeZoom?: (delta: number) => void;
+    resetView?: () => void;
   }
 }
 
@@ -103,10 +105,16 @@ export class VoiceClient {
     this.applyAction(data.action ?? null);
   }
 
-  /** Map an optional agent `action` to a presenter feature hook. */
+  /** Map an agent `action` (intent "manipulate") to a presenter feature hook. */
   private applyAction(action: string | null): void {
     if (!action) return;
     switch (action) {
+      case 'zoom_in':
+        window.nudgeZoom?.(0.3);
+        break;
+      case 'zoom_out':
+        window.nudgeZoom?.(-0.3);
+        break;
       case 'explode':
         window.setExplode?.(1);
         break;
@@ -129,6 +137,9 @@ export class VoiceClient {
       case 'view_top':
       case 'view_iso':
         window.snapToView?.(action.slice('view_'.length) as 'front' | 'back' | 'top' | 'iso');
+        break;
+      case 'reset':
+        window.resetView?.();
         break;
       default:
         break;

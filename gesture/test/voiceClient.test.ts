@@ -104,4 +104,38 @@ describe('VoiceClient → presenter mapping', () => {
 
     expect((window.setExplode as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(1);
   });
+
+  it('maps manipulate actions to the right hooks without swapping the model', async () => {
+    window.nudgeZoom = vi.fn();
+    window.setTurntable = vi.fn();
+    window.snapToView = vi.fn();
+    window.setRenderMode = vi.fn();
+    window.resetView = vi.fn();
+
+    const cases: Array<[string, () => void]> = [
+      ['zoom_in', () => expect(window.nudgeZoom).toHaveBeenCalledWith(0.3)],
+      ['zoom_out', () => expect(window.nudgeZoom).toHaveBeenCalledWith(-0.3)],
+      ['spin_on', () => expect(window.setTurntable).toHaveBeenCalledWith({ on: true })],
+      ['spin_off', () => expect(window.setTurntable).toHaveBeenCalledWith({ on: false })],
+      ['view_back', () => expect(window.snapToView).toHaveBeenCalledWith('back')],
+      ['wireframe', () => expect(window.setRenderMode).toHaveBeenCalledWith('wireframe')],
+      ['reset', () => expect(window.resetView).toHaveBeenCalled()],
+    ];
+
+    for (const [action, assert] of cases) {
+      stubAgent({
+        intent: 'manipulate',
+        model: null,
+        compare_to: null,
+        clippy: 'presenting',
+        narration: action,
+        action,
+      });
+      await new VoiceClient().send(action);
+      assert();
+    }
+
+    // Manipulation never swaps the displayed model.
+    expect(hooks().setModelState).not.toHaveBeenCalled();
+  });
 });

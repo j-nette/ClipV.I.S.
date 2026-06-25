@@ -21,6 +21,31 @@ export function mockParse(userText, currentModel) {
     return unknown();
   }
 
+  // manipulate — voice-driven transforms of the thing already on screen.
+  // Actions mirror the presenter's window hooks (see voiceClient.applyAction).
+  // Order matters: more specific phrases (e.g. "stop spinning") come first.
+  const MANIP = [
+    { re: /(zoom in|closer|enlarge|bigger|zoom)/, action: "zoom_in", say: "Zooming in." },
+    { re: /(zoom out|further|smaller|shrink|back up|pull back)/, action: "zoom_out", say: "Zooming out." },
+    { re: /(put it back together|reassemble|collapse|unexplode)/, action: "collapse", say: "Putting it back together." },
+    { re: /(explode|blow (it )?apart|take it apart|exploded view)/, action: "explode", say: "Exploding the view." },
+    { re: /(stop spinning|stop turning|stop|hold still|freeze)/, action: "spin_off", say: "Holding still." },
+    { re: /(spin|rotate|turn it|turntable)/, action: "spin_on", say: "Spinning it around." },
+    { re: /(wireframe|wire frame)/, action: "wireframe", say: "Wireframe mode." },
+    { re: /(x-?ray|see through|transparent)/, action: "xray", say: "X-ray mode." },
+    { re: /(solid mode|back to solid|fill it in)/, action: "solid", say: "Back to solid." },
+    { re: /(back view|the back|from behind|behind it)/, action: "view_back", say: "Here's the back." },
+    { re: /(top view|from above|bird'?s eye|from the top)/, action: "view_top", say: "Here's the top." },
+    { re: /(iso|isometric|angle view|three.quarter)/, action: "view_iso", say: "Isometric view." },
+    { re: /(front view|the front|head on|from the front)/, action: "view_front", say: "Here's the front." },
+    { re: /(reset|recenter|center it|start over)/, action: "reset", say: "Resetting the view." },
+  ];
+  for (const m of MANIP) {
+    if (m.re.test(t)) {
+      return { intent: "manipulate", model: null, compare_to: null, action: m.action, clippy: emoteFor(t, "presenting"), narration: m.say };
+    }
+  }
+
   // chat / greetings — gives a little Jarvis-style banter even in mock mode
   const greetings = ["hi", "hey", "hello", "yo", "sup", "thanks", "thank you", "how are you", "who are you", "what can you do"];
   if (greetings.some((g) => t === g || t.startsWith(g + " ") || t.includes("how are you") || t.includes("who are you") || t.includes("what can you"))) {

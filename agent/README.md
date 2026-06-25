@@ -36,11 +36,18 @@ See `RUNNING.md` for details. With no keys it runs fully in **mock mode**.
 ## Agent contract (stable interface — coordinate before changing)
 ```json
 {
-  "intent": "show_model | lookup_spec | compare | chat | unknown",
+  "intent": "show_model | lookup_spec | compare | manipulate | chat | unknown",
   "model": "<id|null>",
   "compare_to": "<id|null>",
-  "clippy": "presenting | idle | confused",
+  "action": "<manipulation action|null>",
+  "clippy": "idle | presenting | thinking | wave | celebrating | confused",
   "narration": "<short in-character line>"
 }
 ```
 Known model ids live in `models.js`: surface_pro_11, surface_pro_10, xbox_controller, building_7.
+
+`action` is set only when `intent` is `manipulate` (else null). It drives the presenter's
+`window.*` hooks (zoom/spin/explode/view/render/reset). Values: `zoom_in`, `zoom_out`,
+`spin_on`, `spin_off`, `explode`, `collapse`, `view_front`, `view_back`, `view_top`, `view_iso`,
+`wireframe`, `xray`, `solid`, `reset`. The field is additive — older consumers that ignore it
+keep working.

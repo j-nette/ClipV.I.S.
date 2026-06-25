@@ -402,6 +402,26 @@ export class HologramPresenter implements Consumer {
         s.compareTo = next.compare_to ?? null;
       });
     w.setClippyState = (action: string) => this.setClippy(action);
+    // Zoom by a signed factor (gesture convention: >0 = zoom in / closer).
+    w.nudgeZoom = (delta: number) =>
+      this.mutate((s) => (s.zoom = clampZoom(s.zoom * (1 - delta))));
+    w.resetView = () => this.resetView();
+  }
+
+  /** Restore the view fields (orientation/zoom/explode/spin/mode) to defaults,
+   *  keeping the current model + Clippy. Mirrored to the follower via state. */
+  private resetView(): void {
+    this.snapping = false;
+    this.mutate((s) => {
+      s.orientation = { x: 0, y: 0, z: 0, w: 1 };
+      s.position = { x: 0, y: 0, z: 0 };
+      s.partOffsets = {};
+      s.zoom = DEFAULT_STATE.zoom;
+      s.explode = 0;
+      s.spin = { on: false, speed: DEFAULT_STATE.spin.speed };
+      s.renderMode = 'solid';
+      s.focusPart = null;
+    });
   }
 
   /** Set Clippy's emote; transient emotes auto-revert to idle so it settles.
@@ -431,4 +451,6 @@ interface HologramWindow extends Window {
   focusPart(partId: string | null): void;
   setModelState(next: { model: string; compare_to?: string | null }): void;
   setClippyState(action: string): void;
+  nudgeZoom(delta: number): void;
+  resetView(): void;
 }
