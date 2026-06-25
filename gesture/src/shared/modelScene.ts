@@ -345,6 +345,7 @@ export class ModelScene {
       const mesh = new THREE.Mesh(spec.geo(), mat);
       mesh.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
       mesh.userData.partId = spec.id;
+      recenterToCentroid(mesh);
       group.add(mesh);
       const pv = newPartView(mesh, [mat], [color], spec.id);
       this.parts.push(pv);
@@ -377,6 +378,7 @@ export class ModelScene {
       mesh.material = Array.isArray(mesh.material) ? cloned : cloned[0];
       const partId = mesh.name || `part-${n++}`;
       mesh.userData.partId = partId;
+      recenterToCentroid(mesh);
       const colors = cloned.map((m) => (m.color ? m.color.clone() : new THREE.Color(0xffffff)));
       const pv = newPartView(mesh, cloned, colors, partId);
       this.parts.push(pv);
@@ -481,6 +483,30 @@ export class ModelScene {
 
 function toThree(q: Quat): THREE.Quaternion {
   return new THREE.Quaternion(q.x, q.y, q.z, q.w);
+}
+
+const _centroid = new THREE.Vector3();
+
+/**
+ * Move a mesh's geometry so its bounding-box centre sits at the mesh's local
+ * origin, shifting the mesh position to compensate so it doesn't visually move.
+ * three.js scales and rotates a mesh about its local origin; a glTF part's
+ * geometry is usually expressed relative to the model's shared origin, so
+ * without this a per-part scale/rotation pivots about the model centre (e.g.
+ * the eyes drift up while scaling). After recentering, both happen in place.
+ */
+function recenterToCentroid(mesh: THREE.Mesh): void {
+  const geom = mesh.geometry as THREE.BufferGeometry | undefined;
+  if (!geom || !geom.isBufferGeometry) return;
+  geom.computeBoundingBox();
+  const bb = geom.boundingBox;
+  if (!bb) return;
+  bb.getCenter(_centroid);
+  if (_centroid.lengthSq() < 1e-12) return; // already centred
+  geom.translate(-_centroid.x, -_centroid.y, -_centroid.z);
+  // Keep the part visually fixed: shift position by the centroid mapped through
+  // the mesh's own scale + rotation (geometry → parent-local).
+  mesh.position.add(_centroid.clone().multiply(mesh.scale).applyQuaternion(mesh.quaternion));
 }
 
 function disposeObject(obj: THREE.Object3D): void {
