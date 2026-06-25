@@ -47,6 +47,9 @@ export const MIDDLE_PINCH_THRESHOLD = 0.32;
 /** A finger counts as curled when its tip-to-MCP distance / hand size is below this. */
 export const FIST_CURL_THRESHOLD = 0.5;
 
+/** A finger counts as extended when its tip-to-MCP distance / hand size is above this. */
+export const FINGER_EXTEND_RATIO = 0.6;
+
 export interface GestureState {
   point: boolean;
   pinch: boolean;
@@ -236,15 +239,19 @@ export function observeHand(hand: HandLandmarks, label: string): HandObservation
   const threeFinger = base.pinch && thumbMiddle < MIDDLE_PINCH_THRESHOLD;
 
   // Pose primitives for the discrete command gestures (explode, snap-view,
-  // render-mode, turntable). Finger extension uses the same tip-vs-PIP test as
-  // the point/create poses, so it's only meaningful with the hand held upright.
-  const idx = isExtended(hand, LM.INDEX_TIP, LM.INDEX_PIP);
-  const mid = isExtended(hand, LM.MIDDLE_TIP, LM.MIDDLE_PIP);
-  const rng = isExtended(hand, LM.RING_TIP, LM.RING_PIP);
-  const pky = isExtended(hand, LM.PINKY_TIP, LM.PINKY_PIP);
+  // render-mode, turntable). Uses DISTANCE-based extension (tip far from its
+  // knuckle), which is orientation-independent — unlike the tip-vs-PIP test, it
+  // still works when the hand bursts outward or sideways (e.g. an explode).
+  const ext = (tip: number, mcp: number): boolean =>
+    dist(hand[tip], hand[mcp]) / handSize > FINGER_EXTEND_RATIO;
+  const idx = ext(LM.INDEX_TIP, LM.INDEX_MCP);
+  const mid = ext(LM.MIDDLE_TIP, LM.MIDDLE_MCP);
+  const rng = ext(LM.RING_TIP, LM.RING_MCP);
+  const pky = ext(LM.PINKY_TIP, LM.PINKY_MCP);
   const fingerCount = (idx ? 1 : 0) + (mid ? 1 : 0) + (rng ? 1 : 0) + (pky ? 1 : 0);
   const fist = isFist(hand, handSize);
-  const openPalm = idx && mid && rng && pky;
+  // Open hand = clearly not a fist; 3+ fingers out is robust to a stray pinky.
+  const openPalm = fingerCount >= 3;
   const indexMiddle =
     idx && mid && !rng && !pky &&
     dist(hand[LM.INDEX_TIP], hand[LM.MIDDLE_TIP]) / handSize < 0.6;

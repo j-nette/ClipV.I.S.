@@ -29,11 +29,11 @@ const AXIS_Y = { x: 0, y: 1, z: 0 };
 
 // --- discrete command gestures (explode / focus / snap-view / render / spin) ---
 /** Frames both fists must be held close together to "charge" the explosion. */
-const EXPLODE_ARM_FRAMES = 10;
+const EXPLODE_ARM_FRAMES = 7;
 /** NDC distance between the two hands that counts as "together" (charged). */
-const EXPLODE_NEAR = 0.7;
+const EXPLODE_NEAR = 1.0;
 /** Hand spread (NDC) beyond the charge distance for a full (1.0) explode. */
-const EXPLODE_RANGE = 1.4;
+const EXPLODE_RANGE = 1.2;
 /** Frames a point must dwell on one spot to isolate that part. */
 const FOCUS_DWELL_FRAMES = 16;
 /** Max cursor drift (NDC) allowed while dwelling. */

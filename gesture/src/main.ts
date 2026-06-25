@@ -173,7 +173,8 @@ function updateMetrics(el: HTMLElement | null, hands: HandObservation[]): void {
     const clr = h.indexPalmClearance.toFixed(2);
     const ratio = h.pinchRatio.toFixed(2);
     const pass = h.indexPalmClearance > INDEX_PALM_CLEARANCE ? 'OK ' : 'fist';
-    return `${h.label.padEnd(5)} ratio ${ratio}  clear ${clr} ${pass}`;
+    const pose = h.fist ? 'FIST' : h.openPalm ? 'OPEN' : h.indexMiddle ? '2FNG' : `${h.fingerCount}f`;
+    return `${h.label.padEnd(5)} ratio ${ratio} clear ${clr} ${pass} ${pose}`;
   });
   el.textContent = `pinch<${PINCH_THRESHOLD}  clear>${INDEX_PALM_CLEARANCE}\n${lines.join('\n')}`;
 }
