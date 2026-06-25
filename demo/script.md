@@ -95,7 +95,7 @@ Hackathon 2026 · Customer Engagement & Support."
 | "what does it weigh?" | lookup_spec | — |
 | "explode it" / "explode the controller" | manipulate → `explode` | `B` |
 | "show me the back" | manipulate → `view_back` | `4` |
-| "x-ray" / "wireframe" / "solid" | manipulate → render mode | `M` |
+| "x-ray" / "wireframe" / "solid mode" | manipulate → render mode | `M` |
 | "show me the surface pro 11" | show_model → `surface_pro_11` | quick-chip |
 | "compare to the surface pro 10" | compare → `surface_pro_10` | — |
 | "reset" | manipulate → `reset` | — |
