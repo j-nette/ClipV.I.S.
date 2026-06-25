@@ -512,7 +512,7 @@ export class ModelScene {
       this.parts.push(pv);
       created.push(pv);
     });
-    if (id && SCREEN_MODELS.has(id)) this.applyScreen(created);
+    if (id && SCREEN_MODELS.has(id)) this.applyScreen(group);
     return created;
   }
 
@@ -520,35 +520,29 @@ export class ModelScene {
    * Light up the flattest panel of a model (its display) with screen content,
    * so a powered-off black laptop screen shows something in the hologram.
    */
-  private applyScreen(parts: PartView[]): void {
-    let screen: PartView | null = null;
-    let best = 0.15; // require a genuinely plate-like panel
-    const sz = new THREE.Vector3();
-    for (const p of parts) {
-      const geom = (p.root as THREE.Mesh).geometry as THREE.BufferGeometry | undefined;
-      if (!geom) continue;
-      if (!geom.boundingBox) geom.computeBoundingBox();
-      geom.boundingBox!.getSize(sz);
-      const d = [sz.x, sz.y, sz.z].sort((a, b) => a - b);
-      const flat = d[0] / (d[2] || 1);
-      if (flat < best) {
-        best = flat;
-        screen = p;
-      }
-    }
-    if (!screen) return;
-    const tex = makeScreenTexture();
-    screen.mats.forEach((mat, i) => {
-      const sm = mat as THREE.MeshStandardMaterial;
-      sm.map = tex;
-      sm.emissiveMap = tex;
-      if (sm.emissive) sm.emissive.setRGB(1, 1, 1);
-      else sm.emissive = new THREE.Color(0xffffff);
-      sm.emissiveIntensity = 0.95;
-      sm.color?.setRGB(1, 1, 1);
-      sm.needsUpdate = true;
-      screen!.baseColors[i] = new THREE.Color(0xffffff);
+  /**
+   * Overlay a glowing screen quad over a laptop's display area. The asset has no
+   * separate screen mesh (the display is baked into a bulky lid), so we float an
+   * emissive plane rather than trying to texture a mesh. Position/size are tuned
+   * from the model bounds; double-sided so it shows regardless of facing.
+   */
+  private applyScreen(group: THREE.Group): void {
+    const box = new THREE.Box3().setFromObject(group);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const w = Math.max(size.x, size.z) * 0.74;
+    const h = w * 0.62; // ~16:10
+    const mat = new THREE.MeshBasicMaterial({
+      map: makeScreenTexture(),
+      side: THREE.DoubleSide,
+      toneMapped: false,
     });
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+    // Upper-back of the laptop, tilted back slightly, facing the viewer.
+    screen.position.set(center.x, center.y + size.y * 0.18, center.z - size.z * 0.2);
+    screen.rotation.x = -0.15;
+    screen.userData.partId = 'screen-overlay';
+    group.add(screen);
   }
 
   /**
