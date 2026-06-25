@@ -159,7 +159,8 @@ export class GestureController {
   // explode (two fists → open + spread)
   private explodeArm = 0;
   private explodeArmed = false;
-  private explodeBase = 0;
+  private explodeLevel = 0;
+  private explodePrevD = 0;
   // focus (point-and-dwell)
   private focusDwell = 0;
   private focusAnchor: NDC | null = null;
@@ -314,6 +315,7 @@ export class GestureController {
     this.pointActive = false;
     this.explodeArm = 0;
     this.explodeArmed = false;
+    this.explodeLevel = 0;
     this.focusDwell = 0;
     this.focusAnchor = null;
     this.focusFired = false;
@@ -530,7 +532,8 @@ export class GestureController {
     this.updateTurntable(hands);
   }
 
-  /** Two fists held together ("charge"), then opened and pulled apart, explode. */
+  /** Two fists "charge", then spreading the open hands explodes / brings them
+   *  together collapses — a relative, resumable scrub that runs both ways. */
   private updateExplode(hands: HandObservation[]): void {
     const a = hands[0];
     const b = hands[1];
@@ -549,22 +552,26 @@ export class GestureController {
         this.explodeArm++;
         if (this.explodeArm >= EXPLODE_ARM_FRAMES) {
           this.explodeArmed = true;
-          this.explodeBase = d;
+          this.explodePrevD = d;
         }
       } else {
         this.explodeArm = 0;
       }
       return;
     }
-    // Armed: while still fisted, keep re-baselining the closed distance; the
-    // moment the hands open (anything but both fists) the spread drives the
-    // explode factor. Stays armed until the hands leave (handled above), so the
-    // brief half-open transition can't drop it. Bring hands back to collapse.
+    // Armed: while fisted, just track the spacing (no change). Once open, the
+    // frame-to-frame change in spread scrubs the explode level relative to where
+    // it already is — spread to explode, bring together to collapse. The level
+    // persists across gestures, so you can re-charge and keep pushing or undo.
     if (bothFist) {
-      this.explodeBase = d;
-    } else {
-      const factor = clamp((d - this.explodeBase) / EXPLODE_RANGE, 0, 1);
-      this.emit({ type: 'explode', factor });
+      this.explodePrevD = d;
+      return;
+    }
+    const delta = (d - this.explodePrevD) / EXPLODE_RANGE;
+    this.explodePrevD = d;
+    if (delta !== 0) {
+      this.explodeLevel = clamp(this.explodeLevel + delta, 0, 1);
+      this.emit({ type: 'explode', factor: this.explodeLevel });
     }
   }
 

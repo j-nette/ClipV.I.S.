@@ -328,6 +328,20 @@ describe('GestureController (command gestures)', () => {
     expect(types(events)).not.toContain('snap_view');
   });
 
+  it('explode is reversible — bringing the open hands together collapses it', () => {
+    const { controller, events } = makeController();
+    const fist = (label: string, x: number) => hand({ label, fist: true, cursor: { x, y: 0 } });
+    for (let i = 0; i < 8; i++) controller.update([fist('Left', -0.2), fist('Right', 0.2)]); // charge
+    const open = (label: string, x: number) =>
+      hand({ label, openPalm: true, fingerCount: 4, cursor: { x, y: 0 } });
+    controller.update([open('Left', -1), open('Right', 1)]); // spread → explode to ~1
+    events.length = 0;
+    controller.update([open('Left', -0.3), open('Right', 0.3)]); // back together → collapse
+    const ex = events.find((e) => e.type === 'explode');
+    expect(ex).toBeDefined();
+    if (ex && ex.type === 'explode') expect(ex.factor).toBeLessThan(0.2);
+  });
+
   it('holding N fingers on the left hand snaps the view', () => {
     const { controller, events } = makeController();
     const left = (n: number) => hand({ label: 'Left', fingerCount: n });
