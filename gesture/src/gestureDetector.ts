@@ -251,14 +251,24 @@ export function observeHand(hand: HandLandmarks, label: string): HandObservation
   const rng = ext(LM.RING_TIP, LM.RING_MCP);
   const pky = ext(LM.PINKY_TIP, LM.PINKY_MCP);
   const fingerCount = (idx ? 1 : 0) + (mid ? 1 : 0) + (rng ? 1 : 0) + (pky ? 1 : 0);
-  // Strict variant: the finger must also point UP (tip above its PIP in image
-  // space). Keeps the view-snap from firing on a half-curled, pinch-ish hand.
-  const up = (tip: number, pip: number): boolean => hand[tip].y < hand[pip].y;
-  const fingerCountUp =
-    (idx && up(LM.INDEX_TIP, LM.INDEX_PIP) ? 1 : 0) +
-    (mid && up(LM.MIDDLE_TIP, LM.MIDDLE_PIP) ? 1 : 0) +
-    (rng && up(LM.RING_TIP, LM.RING_PIP) ? 1 : 0) +
-    (pky && up(LM.PINKY_TIP, LM.PINKY_PIP) ? 1 : 0);
+  // Strict variant for the view snap: every counted finger must be VERY straight
+  // (tip above its PIP above its MCP — no bend) AND the whole hand must be held
+  // basically vertical to the camera (knuckles well above the wrist). Keeps it
+  // from firing on a pinch-ish, tilted, or half-curled hand.
+  const span = Math.hypot(
+    hand[LM.MIDDLE_MCP].x - hand[LM.WRIST].x,
+    hand[LM.MIDDLE_MCP].y - hand[LM.WRIST].y,
+  ) || 1e-6;
+  const verticality = (hand[LM.WRIST].y - hand[LM.MIDDLE_MCP].y) / span; // 1 = straight up
+  const handUpright = verticality > 0.8; // within ~37° of vertical
+  const straightUp = (tip: number, pip: number, mcp: number): boolean =>
+    hand[tip].y < hand[pip].y && hand[pip].y < hand[mcp].y;
+  const fingerCountUp = !handUpright
+    ? 0
+    : (idx && straightUp(LM.INDEX_TIP, LM.INDEX_PIP, LM.INDEX_MCP) ? 1 : 0) +
+      (mid && straightUp(LM.MIDDLE_TIP, LM.MIDDLE_PIP, LM.MIDDLE_MCP) ? 1 : 0) +
+      (rng && straightUp(LM.RING_TIP, LM.RING_PIP, LM.RING_MCP) ? 1 : 0) +
+      (pky && straightUp(LM.PINKY_TIP, LM.PINKY_PIP, LM.PINKY_MCP) ? 1 : 0);
   const fist = isFist(hand, handSize);
   // Open hand = clearly not a fist; 3+ fingers out is robust to a stray pinky.
   const openPalm = fingerCount >= 3;
