@@ -48,12 +48,12 @@ const RENDER_RELEASE = 0.55;
 /** Frames to wait before another render-mode snap can fire. */
 const RENDER_COOLDOWN = 10;
 /** Min horizontal hand speed (NDC/frame) of a two-finger swipe to fling the spin. */
-const TURN_SWIPE_VX = 0.05;
+const TURN_SWIPE_VX = 0.022;
 /** Swipe speed → spin speed (rad/s) and its cap. */
-const TURN_SPEED_GAIN = 9;
+const TURN_SPEED_GAIN = 20;
 const TURN_MAX_SPEED = 6;
 /** Frames the two-finger pose must be held still to stop the spin. */
-const TURN_STOP_FRAMES = 12;
+const TURN_STOP_FRAMES = 14;
 
 export interface ControllerOptions {
   /** Pinch enters when ratio drops below this. */
@@ -635,7 +635,8 @@ export class GestureController {
   /** Two-finger swipe flings the spin (speed ∝ swipe); holding it still stops it. */
   private updateTurntable(hands: HandObservation[]): void {
     for (const h of hands) {
-      if (this.isPinching(h.label) || !h.indexMiddle) {
+      // Right hand only — the left hand's finger counts drive view snaps.
+      if (!this.isTranslator(h.label) || this.isPinching(h.label) || !h.indexMiddle) {
         this.turnPrevX.delete(h.label);
         this.turnStill.delete(h.label);
         continue;

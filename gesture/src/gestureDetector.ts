@@ -254,7 +254,7 @@ export function observeHand(hand: HandLandmarks, label: string): HandObservation
   const openPalm = fingerCount >= 3;
   const indexMiddle =
     idx && mid && !rng && !pky &&
-    dist(hand[LM.INDEX_TIP], hand[LM.MIDDLE_TIP]) / handSize < 0.6;
+    dist(hand[LM.INDEX_TIP], hand[LM.MIDDLE_TIP]) / handSize < 0.85;
 
   return {
     label,

@@ -368,7 +368,7 @@ describe('GestureController (command gestures)', () => {
     const on = events.find((e) => e.type === 'turntable' && e.on === true);
     expect(on).toBeDefined();
     if (on && on.type === 'turntable') expect(Math.abs(on.speed ?? 0)).toBeGreaterThan(0);
-    for (let i = 0; i < 13; i++) controller.update([two(0.2)]); // held still
+    for (let i = 0; i < 16; i++) controller.update([two(0.2)]); // held still
     expect(events.some((e) => e.type === 'turntable' && e.on === false)).toBe(true);
   });
 
