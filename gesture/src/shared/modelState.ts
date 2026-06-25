@@ -76,9 +76,10 @@ export function clampZoom(n: number): number {
 export const VIEW_QUATS: Record<ViewName, Quat> = {
   front: { ...IDENTITY_QUAT },
   back: quatFromAxisAngle({ x: 0, y: 1, z: 0 }, Math.PI),
-  top: quatFromAxisAngle({ x: 1, y: 0, z: 0 }, -Math.PI / 2),
+  right: quatFromAxisAngle({ x: 0, y: 1, z: 0 }, -Math.PI / 2),
+  top: quatFromAxisAngle({ x: 1, y: 0, z: 0 }, Math.PI / 2),
   iso: quatMultiply(
-    quatFromAxisAngle({ x: 1, y: 0, z: 0 }, -0.5),
+    quatFromAxisAngle({ x: 1, y: 0, z: 0 }, 0.5),
     quatFromAxisAngle({ x: 0, y: 1, z: 0 }, -Math.PI / 4),
   ),
 };

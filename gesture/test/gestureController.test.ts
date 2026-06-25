@@ -18,6 +18,7 @@ function hand(partial: Partial<HandObservation> = {}): HandObservation {
     fist: false,
     openPalm: false,
     fingerCount: 0,
+    fingerCountUp: 0,
     indexMiddle: false,
     thumbMiddleRatio: 1,
     depth: 0.2,
@@ -344,7 +345,7 @@ describe('GestureController (command gestures)', () => {
 
   it('holding N fingers on the left hand snaps the view', () => {
     const { controller, events } = makeController();
-    const left = (n: number) => hand({ label: 'Left', fingerCount: n });
+    const left = (n: number) => hand({ label: 'Left', fingerCount: n, fingerCountUp: n });
     for (let i = 0; i < 8; i++) controller.update([left(2)]); // hold "2" past SNAP_HOLD_FRAMES
     const snap = events.find((e) => e.type === 'snap_view');
     expect(snap).toBeDefined();
