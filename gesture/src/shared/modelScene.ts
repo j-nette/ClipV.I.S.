@@ -106,26 +106,22 @@ const PART_SPECS: Record<string, PartSpec[]> = {
     { id: 'eye_l', geo: () => new THREE.SphereGeometry(0.14, 20, 20), color: 0xffffff, pos: [-0.22, 0.24, 0.55] },
     { id: 'eye_r', geo: () => new THREE.SphereGeometry(0.14, 20, 20), color: 0xffffff, pos: [0.22, 0.24, 0.55] },
   ],
-  surface_pro_11: [
-    { id: 'kickstand', geo: () => new THREE.BoxGeometry(2.0, 1.3, 0.04), color: 0x2a3550, pos: [0, 0, -0.06] },
-    { id: 'chassis', geo: () => new THREE.BoxGeometry(2.2, 1.5, 0.06), color: 0x4fd1ff, pos: [0, 0, 0] },
-    { id: 'screen', geo: () => new THREE.BoxGeometry(2.0, 1.3, 0.02), color: 0x9fe7ff, pos: [0, 0, 0.06] },
-  ],
-  surface_pro_10: [
-    { id: 'kickstand', geo: () => new THREE.BoxGeometry(2.0, 1.3, 0.04), color: 0x2a2a55, pos: [0, 0, -0.06] },
-    { id: 'chassis', geo: () => new THREE.BoxGeometry(2.2, 1.5, 0.06), color: 0x8a7dff, pos: [0, 0, 0] },
-    { id: 'screen', geo: () => new THREE.BoxGeometry(2.0, 1.3, 0.02), color: 0xc4bcff, pos: [0, 0, 0.06] },
-  ],
   xbox_controller: [
     { id: 'body', geo: () => new THREE.TorusGeometry(0.7, 0.32, 16, 48), color: 0x52ff8f, pos: [0, 0, 0] },
     { id: 'stick_l', geo: () => new THREE.SphereGeometry(0.18, 20, 20), color: 0xffffff, pos: [-0.35, 0.18, 0.2] },
     { id: 'stick_r', geo: () => new THREE.SphereGeometry(0.18, 20, 20), color: 0xffffff, pos: [0.35, -0.05, 0.2] },
     { id: 'dpad', geo: () => new THREE.BoxGeometry(0.3, 0.3, 0.15), color: 0x222831, pos: [0, 0.05, 0.25] },
   ],
-  building_7: [
-    { id: 'floor_1', geo: () => new THREE.BoxGeometry(1.4, 0.8, 1.4), color: 0xffd166, pos: [0, -0.8, 0] },
-    { id: 'floor_2', geo: () => new THREE.BoxGeometry(1.3, 0.8, 1.3), color: 0xffdf8e, pos: [0, 0, 0] },
-    { id: 'floor_3', geo: () => new THREE.BoxGeometry(1.2, 0.8, 1.2), color: 0xfff0bf, pos: [0, 0.8, 0] },
+  surface_laptop: [
+    { id: 'base', geo: () => new THREE.BoxGeometry(2.2, 0.12, 1.5), color: 0x9aa3b2, pos: [0, -0.45, 0] },
+    { id: 'keyboard', geo: () => new THREE.BoxGeometry(2.0, 0.02, 1.2), color: 0x2a3550, pos: [0, -0.38, 0.05] },
+    { id: 'screen', geo: () => new THREE.BoxGeometry(2.1, 1.4, 0.06), color: 0x4fd1ff, pos: [0, 0.3, -0.7] },
+  ],
+  circuit: [
+    { id: 'board', geo: () => new THREE.BoxGeometry(2.2, 0.08, 1.6), color: 0x1f7a3d, pos: [0, 0, 0] },
+    { id: 'chip_a', geo: () => new THREE.BoxGeometry(0.5, 0.2, 0.5), color: 0x222831, pos: [-0.5, 0.14, 0.3] },
+    { id: 'chip_b', geo: () => new THREE.BoxGeometry(0.7, 0.18, 0.4), color: 0x333a45, pos: [0.5, 0.13, -0.2] },
+    { id: 'cap', geo: () => new THREE.CylinderGeometry(0.12, 0.12, 0.3, 16), color: 0xc0c0c0, pos: [0.1, 0.18, 0.5] },
   ],
 };
 

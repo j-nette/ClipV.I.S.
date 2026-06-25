@@ -46,9 +46,9 @@ console.log(`[clipvis-agent] LLM: ${LLM} | Data: ${fabricStatus()} | TTS: ${TTS_
 
 // --- Demo response cache (step 11): exact-match scripted commands skip the model call ---
 const DEMO_CACHE = {
-  "clippy, show me the surface pro 11": {
-    intent: "show_model", model: "surface_pro_11", compare_to: null,
-    clippy: "presenting", narration: "Here's the Surface Pro 11."
+  "clippy, show me the surface laptop": {
+    intent: "show_model", model: "surface_laptop", compare_to: null,
+    clippy: "presenting", narration: "Here's the Surface Laptop."
   }
 };
 

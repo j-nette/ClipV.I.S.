@@ -44,7 +44,7 @@ See `RUNNING.md` for details. With no keys it runs fully in **mock mode**.
   "narration": "<short in-character line>"
 }
 ```
-Known model ids live in `models.js`: surface_pro_11, surface_pro_10, xbox_controller, building_7.
+Known model ids live in `models.js`: xbox_controller, circuit, surface_laptop.
 
 `action` is set only when `intent` is `manipulate` (else null). It drives the presenter's
 `window.*` hooks (zoom/spin/explode/view/render/reset). Values: `zoom_in`, `zoom_out`,

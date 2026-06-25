@@ -153,8 +153,8 @@ exposes the older `setSceneState`/`setClippyState` pair for the :3000 fallback p
 
 ## ▶️ Next steps (priority order)
 1. **Demo script** (`demo/script.md`) — lock the exact 90-sec pitch + the exact spoken commands.
-2. **Real hero `.glb` models** → drop in `models/` named `surface_pro_11.glb`, `xbox_controller.glb`,
-   `building_7.glb` (see `agent/models.js` for the names). They auto-load, no code change.
+2. **Real hero `.glb` models** ✅ in `models/`: `xbox_controller.glb`, `circuit.glb`,
+   `surface_laptop.glb` (registered in `agent/models.js`). They auto-load, no code change.
 3. **Physical pyramid** build + tune pinwheel (`[ ] - = , . ; '` in pyramid mode) on the real tablet.
 4. **Merge `dev/voice-agent` → main** (open PR).
 5. **Backup demo video** (record a perfect run Thursday night) + submission package.

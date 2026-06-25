@@ -46,7 +46,7 @@ export interface ModelState {
 }
 
 export const DEFAULT_STATE: ModelState = {
-  model: 'surface_pro_11',
+  model: 'xbox_controller',
   compareTo: null,
   orientation: { ...IDENTITY_QUAT },
   position: { x: 0, y: 0, z: 0 },

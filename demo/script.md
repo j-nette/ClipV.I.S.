@@ -101,7 +101,7 @@ Hackathon 2026 · Customer Engagement & Support."
 | "show me the surface laptop" | show_model → `surface_laptop` | quick-chip |
 | "reset" | manipulate → `reset` | — |
 
-Hero model ids: `xbox_controller`, `circuit`, `surface_laptop` (`agent/models.js`; `surface_pro_11`/`building_7` remain registered too).
+Hero model ids: `xbox_controller`, `circuit`, `surface_laptop` (`agent/models.js`).
 
 ---
 
