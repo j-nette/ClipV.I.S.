@@ -21,7 +21,7 @@ const BOTTOM_OFFSET_PX = 64;
 
 export class ClippyOverlay {
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(35, 1, 0.1, 50);
+  private readonly camera = new THREE.PerspectiveCamera(35, 1, 1, 20);
   private readonly clippy = new Clippy();
   private readonly clock = new THREE.Clock();
   private readonly size = new THREE.Vector2();

@@ -92,7 +92,14 @@ export class HologramPresenter implements Consumer {
   private scalePartId: string | null = null;
 
   constructor(private readonly container: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    // logarithmicDepthBuffer + a tight near/far fix the z-fighting "derender"
+    // seen on low-precision (often integrated) laptop GPUs; high-performance
+    // asks a hybrid laptop to bind the discrete GPU.
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      logarithmicDepthBuffer: true,
+      powerPreference: 'high-performance',
+    });
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     container.appendChild(this.renderer.domElement);
@@ -100,8 +107,8 @@ export class HologramPresenter implements Consumer {
     this.camera = new THREE.PerspectiveCamera(
       50,
       container.clientWidth / container.clientHeight,
-      0.1,
-      100,
+      0.3,
+      50,
     );
 
     this.modelScene.setModels(this.state.model, this.state.compareTo);

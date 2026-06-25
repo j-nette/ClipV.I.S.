@@ -76,11 +76,16 @@ export class Pinwheel {
     canvas: HTMLCanvasElement,
     private readonly scene: THREE.Scene,
   ) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      logarithmicDepthBuffer: true,
+      powerPreference: 'high-performance',
+    });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 
     for (let i = 0; i < 4; i++) {
-      this.cameras.push(new THREE.PerspectiveCamera(45, 1, 0.1, 100));
+      this.cameras.push(new THREE.PerspectiveCamera(45, 1, 0.3, 50));
       const rt = new THREE.WebGLRenderTarget(RT_SIZE, RT_SIZE, { samples: 4 });
       this.rts.push(rt);
       const quad = new THREE.Mesh(
