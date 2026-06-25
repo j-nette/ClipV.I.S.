@@ -47,6 +47,13 @@ interface PartView {
   baseColors: THREE.Color[];
   /** Local resting position (explode displaces from here). */
   originalPos: THREE.Vector3;
+  /** Local resting orientation (per-part rotation composes on top of this). */
+  originalQuat: THREE.Quaternion;
+  /** Local resting scale (per-part scale multiplies this). */
+  originalScale: THREE.Vector3;
+  /** Offset (parent frame, rest pose) from the mesh origin to its geometry
+   *  centroid — so per-part rotate/scale can pivot about the part's own center. */
+  centroidOffset: THREE.Vector3;
   /** Unit outward direction from the model center, in world space at build time. */
   dirWorld: THREE.Vector3;
   /** How far this part already sits from the model center (drives proportional spread). */
@@ -66,6 +73,9 @@ const EXPLODE_SPEED = 0.1;
 
 const _explodeA = new THREE.Vector3();
 const _explodeB = new THREE.Vector3();
+const _tmpVec = new THREE.Vector3();
+const _pivotVec = new THREE.Vector3();
+const _tmpQuat = new THREE.Quaternion();
 
 /** Create a PartView; explode fields are baked later by registerExplode(). */
 function newPartView(
@@ -74,11 +84,24 @@ function newPartView(
   baseColors: THREE.Color[],
   partId: string,
 ): PartView {
+  // Offset from the mesh origin to its geometry centroid, in the parent frame at
+  // rest, so per-part rotate/scale can pivot about the part's own center (CAD
+  // "rotate in place") rather than the authored mesh origin.
+  const centroidOffset = new THREE.Vector3();
+  const geom = (root as THREE.Mesh).geometry as THREE.BufferGeometry | undefined;
+  if (geom) {
+    if (!geom.boundingBox) geom.computeBoundingBox();
+    geom.boundingBox?.getCenter(centroidOffset);
+    centroidOffset.multiply(root.scale).applyQuaternion(root.quaternion);
+  }
   return {
     root,
     mats,
     baseColors,
     originalPos: root.position.clone(),
+    originalQuat: root.quaternion.clone(),
+    originalScale: root.scale.clone(),
+    centroidOffset,
     dirWorld: new THREE.Vector3(),
     offsetLen: 0,
     parentInv: new THREE.Matrix4(),
@@ -193,7 +216,7 @@ export class ModelScene {
     // Ease the actual displacement toward the target so explode animates.
     this.explodeAmount += (s.explode - this.explodeAmount) * EXPLODE_SPEED;
     this.applyExplode(this.explodeAmount);
-    this.applyPartOffsets(s.partOffsets);
+    this.applyPartTransforms(s.partTransforms);
     this.refreshMaterials(s);
   }
 
@@ -210,21 +233,53 @@ export class ModelScene {
     return p.root.getWorldPosition(out);
   }
 
-  /** Convert a world-space delta into the parts' local frame (cancels pivot rotation). */
-  worldDeltaToLocal(delta: THREE.Vector3, out = new THREE.Vector3()): THREE.Vector3 {
+  /** Convert a world-space delta into a part's parent-local frame (handles the
+   *  glTF root's scale + rotation, so a part drag tracks the cursor 1:1). */
+  worldDeltaToPartLocal(
+    partId: string,
+    delta: THREE.Vector3,
+    out = new THREE.Vector3(),
+  ): THREE.Vector3 {
+    const p = this.parts.find((pv) => pv.partId === partId);
+    const parent = p?.root.parent;
+    if (!parent) return out.copy(delta);
     this.pivot.updateMatrixWorld(true);
-    const q = this.pivot.getWorldQuaternion(new THREE.Quaternion()).invert();
-    return out.copy(delta).applyQuaternion(q);
+    const inv = parent.matrixWorld.clone().invert();
+    const origin = _tmpVec.set(0, 0, 0).applyMatrix4(inv);
+    return out.copy(delta).applyMatrix4(inv).sub(origin);
   }
 
-  /** Add each part's persistent drag offset on top of its exploded position. */
-  private applyPartOffsets(offsets: ModelState['partOffsets']): void {
+  /** Convert a world-space delta quaternion into a part's parent-local frame. */
+  worldQuatToPartLocal(partId: string, q: Quat): Quat {
+    const p = this.parts.find((pv) => pv.partId === partId);
+    const parent = p?.root.parent;
+    if (!parent) return { ...q };
+    this.pivot.updateMatrixWorld(true);
+    const pq = parent.getWorldQuaternion(_tmpQuat);
+    const res = pq.clone().invert().multiply(toThree(q)).multiply(pq);
+    return { x: res.x, y: res.y, z: res.z, w: res.w };
+  }
+
+  /** Apply each part's full transform (translate/rotate/scale) on top of explode. */
+  private applyPartTransforms(transforms: ModelState['partTransforms']): void {
     for (const p of this.parts) {
-      const o = offsets[p.partId];
-      if (!o) continue;
-      p.root.position.x += o.x;
-      p.root.position.y += o.y;
-      p.root.position.z += o.z;
+      const t = transforms[p.partId];
+      if (t) {
+        const dR = toThree(t.quaternion);
+        p.root.position.x += t.position.x;
+        p.root.position.y += t.position.y;
+        p.root.position.z += t.position.z;
+        // Pivot the rotation + scale about the part's own centroid (rotate in
+        // place): shift by the centroid offset minus where that offset lands
+        // after the rotation/scale, so the centroid stays fixed.
+        const corr = _pivotVec.copy(p.centroidOffset).applyQuaternion(dR).multiplyScalar(t.scale);
+        p.root.position.add(p.centroidOffset).sub(corr);
+        p.root.quaternion.copy(dR).multiply(p.originalQuat);
+        p.root.scale.copy(p.originalScale).multiplyScalar(t.scale);
+      } else {
+        p.root.quaternion.copy(p.originalQuat);
+        p.root.scale.copy(p.originalScale);
+      }
     }
   }
 

@@ -1,12 +1,15 @@
 import * as THREE from 'three';
-import type { Consumer, GestureEvent, ManipulationScope } from '../types';
+import type { Consumer, GestureEvent, ManipulationScope, Quat } from '../types';
 import {
   DEFAULT_STATE,
   VIEW_QUATS,
   clamp01,
+  clampPartScale,
+  clampPosition,
   clampZoom,
   nextRenderMode,
   type ModelState,
+  type PartTransform,
 } from '../shared/modelState';
 import { ModelScene } from '../shared/modelScene';
 import { createPresenterSync, type PresenterSync } from '../shared/holoSync';
@@ -87,15 +90,10 @@ export class HologramPresenter implements Consumer {
   handle(e: GestureEvent): void {
     switch (e.type) {
       case 'rotate':
-        this.snapping = false; // manual rotate takes over from an in-flight snap
-        this.mutate((s) => {
-          s.orientation = quatNormalize(quatMultiply(e.q, s.orientation));
-        });
+        this.applyRotate(e.q, e.scope);
         break;
       case 'zoom':
-        this.mutate((s) => {
-          s.zoom = clampZoom(s.zoom * (1 - e.delta));
-        });
+        this.applyZoom(e.delta, e.scope);
         break;
       case 'point':
         this.modelScene.setHover(this.modelScene.pickPartId(e.ndc, this.camera));
@@ -163,6 +161,56 @@ export class HologramPresenter implements Consumer {
     this.sync.publish(this.state);
   }
 
+  /** The part object-scope manipulations target: the grabbed part, else focus. */
+  private activePart(): string | null {
+    return this.dragPartId ?? this.state.focusPart;
+  }
+
+  /** Ensure a mutable PartTransform exists for `id` and return it. */
+  private ensurePartTransform(s: ModelState, id: string): PartTransform {
+    const existing = s.partTransforms[id];
+    if (existing) return existing;
+    const t: PartTransform = {
+      position: { x: 0, y: 0, z: 0 },
+      quaternion: { x: 0, y: 0, z: 0, w: 1 },
+      scale: 1,
+    };
+    s.partTransforms[id] = t;
+    return t;
+  }
+
+  /** Rotate: object scope turns the active part (own frame); else the assembly. */
+  private applyRotate(q: Quat, scope: ManipulationScope): void {
+    this.snapping = false; // manual rotate takes over from an in-flight snap
+    const id = scope === 'object' ? this.activePart() : null;
+    if (id) {
+      const local = this.modelScene.worldQuatToPartLocal(id, q);
+      this.mutate((s) => {
+        const t = this.ensurePartTransform(s, id);
+        t.quaternion = quatNormalize(quatMultiply(local, t.quaternion));
+      });
+    } else {
+      this.mutate((s) => {
+        s.orientation = quatNormalize(quatMultiply(q, s.orientation));
+      });
+    }
+  }
+
+  /** Zoom: object scope scales the active part; else dollies the camera. */
+  private applyZoom(delta: number, scope: ManipulationScope): void {
+    const id = scope === 'object' ? this.activePart() : null;
+    if (id) {
+      this.mutate((s) => {
+        const t = this.ensurePartTransform(s, id);
+        t.scale = clampPartScale(t.scale * (1 + delta));
+      });
+    } else {
+      this.mutate((s) => {
+        s.zoom = clampZoom(s.zoom * (1 - delta));
+      });
+    }
+  }
+
   /** Start a pinch-drag. Assembly scope moves everything; object scope grabs
    *  only the part under the pinch (no-op if the pinch misses the model). */
   private beginDrag(ndc: { x: number; y: number }, scope: ManipulationScope): void {
@@ -205,7 +253,7 @@ export class HologramPresenter implements Consumer {
     this.dragPlane.setFromNormalAndCoplanarPoint(this.cameraNormal(), worldPos);
     this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), this.camera);
     this.raycaster.ray.intersectPlane(this.dragPlane, this.dragStartHit);
-    const cur = this.state.partOffsets[partId];
+    const cur = this.state.partTransforms[partId]?.position;
     this.dragStartOffset.set(cur?.x ?? 0, cur?.y ?? 0, cur?.z ?? 0);
     this.dragPartId = partId;
     this.dragMode = 'part';
@@ -218,22 +266,22 @@ export class HologramPresenter implements Consumer {
     if (!this.raycaster.ray.intersectPlane(this.dragPlane, this.dragPoint)) return;
 
     if (this.dragMode === 'assembly') {
-      const x = this.dragPoint.x + this.grabOffset.x;
-      const y = this.dragPoint.y + this.grabOffset.y;
-      const z = this.dragPoint.z + this.grabOffset.z;
+      const x = clampPosition(this.dragPoint.x + this.grabOffset.x);
+      const y = clampPosition(this.dragPoint.y + this.grabOffset.y);
+      const z = clampPosition(this.dragPoint.z + this.grabOffset.z);
       this.mutate((s) => {
         s.position = { x, y, z };
       });
     } else if (this.dragMode === 'part' && this.dragPartId) {
-      // World delta → local frame (cancel pivot rotation), added to the offset.
+      // World delta → the part's parent-local frame (handles glTF scale/rotation).
       const worldDelta = this.dragPoint.clone().sub(this.dragStartHit);
-      const local = this.modelScene.worldDeltaToLocal(worldDelta);
+      const local = this.modelScene.worldDeltaToPartLocal(this.dragPartId, worldDelta);
       const id = this.dragPartId;
       const x = this.dragStartOffset.x + local.x;
       const y = this.dragStartOffset.y + local.y;
       const z = this.dragStartOffset.z + local.z;
       this.mutate((s) => {
-        s.partOffsets = { ...s.partOffsets, [id]: { x, y, z } };
+        this.ensurePartTransform(s, id).position = { x, y, z };
       });
     }
   }
@@ -301,8 +349,14 @@ export class HologramPresenter implements Consumer {
     w.focusPart = (partId) => this.mutate((s) => (s.focusPart = partId ?? null));
     w.setModelState = (next: { model: string; compare_to?: string | null }) =>
       this.mutate((s) => {
+        const changed = next.model !== s.model || (next.compare_to ?? null) !== s.compareTo;
         s.model = next.model;
         s.compareTo = next.compare_to ?? null;
+        if (changed) {
+          // New model → drop stale assembly/part transforms so nothing carries over.
+          s.position = { x: 0, y: 0, z: 0 };
+          s.partTransforms = {};
+        }
       });
   }
 }

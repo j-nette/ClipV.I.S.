@@ -78,19 +78,32 @@ placeholder. To add a brand-new model, also register it in `agent/models.js`
 
 ## Controls (keyboard + mouse — always on)
 
+Manipulation is dispatched by a **scope** (`b` toggles it) and a **target**:
+
+- **assembly scope** → rotate/translate the whole model; zoom dollies the camera.
+- **object scope** → rotate/translate/scale the **active part** (the part you
+  grabbed, else the focused part). With a webcam: two-finger pinch = object,
+  three-finger pinch = assembly.
+
+> **No webcam? The mouse is the cursor.** Move the mouse to hover/highlight a
+> part, press `K` to focus (or `G` to grab) it, set object scope with `B`, then
+> `Q`/`E`/`Z`/`X`/arrows transform that part. Mouse-drag moves the grab target.
+> A small `scope:` readout (top-left) shows object vs assembly.
+
 **Manipulation**
 | Input | Action |
 |---|---|
 | `P` (hold) | Point at the cursor (hover-highlights a part); release ends |
-| `G` | Grab toggle (no-op in the presenter; used by the standalone scene) |
-| `← → ↑ ↓` | Move the virtual cursor |
-| `Q`/`E` · `R`/`F` · `C`/`V` | Rotate yaw · pitch · roll |
-| `Z`/`X` or wheel | Zoom in / out |
+| `B` | Toggle scope: object ↔ assembly |
+| `G` | Grab toggle — pinch-drag to translate (assembly or the picked part) |
+| `← → ↑ ↓` | Move the cursor (drags the grab target while grabbing) |
+| `Q`/`E` · `R`/`F` · `C`/`V` | Rotate yaw · pitch · roll (assembly, or active part in object scope) |
+| `Z`/`X` or wheel | Zoom — camera dolly (assembly) or part scale (object scope) |
 
 **Hologram features** (presenter; no-ops in standalone)
 | Input | Action |
 |---|---|
-| `B` | Toggle exploded view (eased, proportional spread) |
+| `O` | Toggle exploded view (eased, proportional spread) |
 | `M` | Cycle render mode: solid → wireframe → x-ray |
 | `Space` / `T` | Toggle turntable auto-spin |
 | `[` / `]` | Snap to previous / next canonical view (animated) |
@@ -98,7 +111,8 @@ placeholder. To add a brand-new model, also register it in `agent/models.js`
 | `K` | Toggle focus/isolate the part at the cursor |
 
 > Bindings deliberately differ from the handoff (`E`/`R`/`F`/arrows are rotate/
-> cursor here), so explode/render/snap moved to `B`/`M`/`[ ]`.
+> cursor here), so explode/render/snap moved to `O`/`M`/`[ ]`, and `B` toggles
+> object↔assembly scope.
 
 ## Standalone test
 Open `?consumer=standalone`, see your hand skeleton (`?debug`), pinch your

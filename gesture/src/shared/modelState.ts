@@ -16,6 +16,19 @@ import { quatFromAxisAngle, quatMultiply, IDENTITY_QUAT } from '../quat';
 
 export type RenderMode = 'solid' | 'wireframe' | 'xray';
 
+/** A full local transform applied to a single part on top of its rest pose. */
+export interface PartTransform {
+  position: { x: number; y: number; z: number };
+  quaternion: Quat;
+  scale: number;
+}
+
+export const IDENTITY_PART_TRANSFORM: PartTransform = {
+  position: { x: 0, y: 0, z: 0 },
+  quaternion: { ...IDENTITY_QUAT },
+  scale: 1,
+};
+
 export interface ModelState {
   /** Model id (matches agent/models.js convention). */
   model: string;
@@ -25,8 +38,8 @@ export interface ModelState {
   orientation: Quat;
   /** Model translation offset in world space (from a three-finger assembly drag). */
   position: { x: number; y: number; z: number };
-  /** Per-part local translation offsets, keyed by part id (two-finger part drag). */
-  partOffsets: Record<string, { x: number; y: number; z: number }>;
+  /** Per-part local transforms (two-finger part rotate/translate/scale), keyed by part id. */
+  partTransforms: Record<string, PartTransform>;
   /** Camera distance (presenter) / ring radius (hologram). */
   zoom: number;
   /** Exploded-view amount, 0..1. */
@@ -46,7 +59,7 @@ export const DEFAULT_STATE: ModelState = {
   compareTo: null,
   orientation: { ...IDENTITY_QUAT },
   position: { x: 0, y: 0, z: 0 },
-  partOffsets: {},
+  partTransforms: {},
   zoom: 5,
   explode: 0,
   spin: { on: false, speed: 0.6 },
@@ -58,12 +71,27 @@ export const DEFAULT_STATE: ModelState = {
 export const MIN_ZOOM = 2;
 export const MAX_ZOOM = 14;
 
+/** Per-part scale limits (object-scope zoom). */
+export const MIN_PART_SCALE = 0.2;
+export const MAX_PART_SCALE = 5;
+
+/** Assembly translation bound, so a drag can't lose the model off-screen. */
+export const MAX_POSITION = 4;
+
 export function clamp01(n: number): number {
   return Math.min(1, Math.max(0, n));
 }
 
 export function clampZoom(n: number): number {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, n));
+}
+
+export function clampPartScale(n: number): number {
+  return Math.min(MAX_PART_SCALE, Math.max(MIN_PART_SCALE, n));
+}
+
+export function clampPosition(n: number): number {
+  return Math.min(MAX_POSITION, Math.max(-MAX_POSITION, n));
 }
 
 /** Canonical view orientations, applied directly to the model pivot. */

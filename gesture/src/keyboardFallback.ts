@@ -8,10 +8,11 @@ import type { NDC, ViewName, ManipulationScope } from './types';
  * ships even if computer vision is cut on Wednesday.
  *
  * Manipulation (both the standalone scene and the hologram presenter):
+ *   Mouse move    → moves the cursor (live hover); drags the target while grabbed
  *   P (hold)      → point at the cursor; release → point_end
  *   G (toggle)    → pinch_start / pinch_end (press to grab, press again to drop)
  *   B (toggle)    → object ↔ assembly scope (mimics the three-finger pinch)
- *   Arrow keys    → move the cursor (nudges pinch_move while grabbed)
+ *   Arrow keys    → move the cursor (keyboard-only fallback; nudges pinch_move while grabbed)
  *   Q / E         → rotate yaw (left / right)
  *   R / F         → rotate pitch (up / down)
  *   C / V         → rotate roll (twist)
@@ -40,6 +41,7 @@ export class KeyboardFallback {
   private focusOn = false;
   private viewIndex = 0;
   private scope: ManipulationScope = 'object';
+  private scopeEl: HTMLElement | null = null;
   private readonly step = 0.06;
   private readonly rotStep = 0.1;
   private readonly zoomStep = 0.08;
@@ -48,10 +50,15 @@ export class KeyboardFallback {
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('wheel', this.onWheel, { passive: false });
+    window.addEventListener('pointermove', this.onPointerMove);
+    this.scopeEl = this.createScopeIndicator();
     return () => {
       window.removeEventListener('keydown', this.onKeyDown);
       window.removeEventListener('keyup', this.onKeyUp);
       window.removeEventListener('wheel', this.onWheel);
+      window.removeEventListener('pointermove', this.onPointerMove);
+      this.scopeEl?.remove();
+      this.scopeEl = null;
     };
   }
 
@@ -68,6 +75,7 @@ export class KeyboardFallback {
         break;
       case 'b':
         this.scope = this.scope === 'object' ? 'assembly' : 'object';
+        this.updateScopeIndicator();
         break;
       case 'arrowleft':
         this.moveCursor(-this.step, 0);
@@ -161,6 +169,36 @@ export class KeyboardFallback {
     const delta = e.deltaY < 0 ? this.zoomStep : -this.zoomStep;
     gestureBus.emit({ type: 'zoom', delta, scope: this.scope });
   };
+
+  /** Mouse acts as the cursor: live hover (point), or drag while grabbing. The
+   *  combo to test per-part transforms with no webcam: hover a part, K to focus
+   *  (or G to grab) it, B for object scope, then Q/E/Z/X/arrows transform it. */
+  private onPointerMove = (e: PointerEvent): void => {
+    this.cursor = {
+      x: (e.clientX / window.innerWidth) * 2 - 1,
+      y: -((e.clientY / window.innerHeight) * 2 - 1),
+    };
+    if (this.pinching) {
+      gestureBus.emit({ type: 'pinch_move', ndc: { ...this.cursor }, scope: this.scope });
+    } else {
+      gestureBus.emit({ type: 'point', ndc: { ...this.cursor } });
+    }
+  };
+
+  private createScopeIndicator(): HTMLElement {
+    const el = document.createElement('div');
+    el.style.cssText =
+      'position:fixed;left:16px;top:16px;z-index:11;padding:6px 10px;border-radius:8px;' +
+      'font:12px/1.4 ui-monospace,monospace;background:rgba(17,24,39,.7);color:#e5e7eb;' +
+      'backdrop-filter:blur(6px);pointer-events:none;';
+    document.body.appendChild(el);
+    this.updateScopeIndicator(el);
+    return el;
+  }
+
+  private updateScopeIndicator(el = this.scopeEl): void {
+    if (el) el.textContent = `scope: ${this.scope}  ·  B toggles · mouse aims · K focus`;
+  }
 
   private togglePinch(): void {
     if (this.pinching) {
