@@ -39,6 +39,24 @@ export const MODELS = {
     owner: "RE&F",
     blurb: "Microsoft Redmond Building 7."
   },
+  surface_laptop: {
+    name: "surface_laptop",
+    display: "Surface Laptop",
+    file: "surface_laptop.glb",
+    weight: "2.84 lbs",
+    price: "$999",
+    owner: "Surface Team",
+    blurb: "The Microsoft Surface Laptop."
+  },
+  circuit: {
+    name: "circuit",
+    display: "Circuit Board",
+    file: "circuit.glb",
+    weight: "n/a",
+    price: "n/a",
+    owner: "Devices Team",
+    blurb: "A circuit board assembly."
+  },
   clippy: {
     name: "clippy",
     display: "Clippy",
@@ -66,6 +84,14 @@ export const ALIASES = {
   "building seven": "building_7",
   "b7": "building_7",
   "building": "building_7",
+  "surface laptop 3": "surface_laptop",
+  "surface laptop": "surface_laptop",
+  "laptop": "surface_laptop",
+  "circuit board": "circuit",
+  "circuit": "circuit",
+  "motherboard": "circuit",
+  "pcb": "circuit",
+  "board": "circuit",
   "clippy": "clippy",
   "paperclip": "clippy",
   "clip": "clippy"
