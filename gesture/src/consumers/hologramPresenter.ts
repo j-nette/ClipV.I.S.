@@ -10,7 +10,7 @@ import {
 } from '../shared/modelState';
 import { ModelScene } from '../shared/modelScene';
 import { createPresenterSync, type PresenterSync } from '../shared/holoSync';
-import { quatFromAxisAngle, quatMultiply, IDENTITY_QUAT } from '../quat';
+import { quatFromAxisAngle, quatMultiply, quatNormalize, IDENTITY_QUAT } from '../quat';
 
 /**
  * Presenter consumer for the laptop screen — the OWNER of `ModelState`.
@@ -43,6 +43,10 @@ function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
 }
 
+/** Emotes that auto-revert to idle so Clippy always settles back to alive-idle. */
+const TRANSIENT_EMOTES: ReadonlySet<string> = new Set(['wave', 'celebrating', 'confused']);
+const CLIPPY_REVERT_MS = 1800;
+
 export class HologramPresenter implements Consumer {
   private readonly state: ModelState = structuredClone(DEFAULT_STATE);
   private readonly modelScene = new ModelScene();
@@ -59,6 +63,9 @@ export class HologramPresenter implements Consumer {
   private readonly snapQuat = new THREE.Quaternion();
   private snapT = 0;
   private snapping = false;
+
+  /** Timer that reverts a transient Clippy emote back to idle. */
+  private clippyRevertTimer = 0;
 
   // Pinch-drag translation on a camera-facing plane.
   private readonly raycaster = new THREE.Raycaster();
@@ -116,7 +123,9 @@ export class HologramPresenter implements Consumer {
         // part the left hand grabbed. A grab on empty space does nothing.
         if (e.scope === 'assembly') {
           this.mutate((s) => {
-            s.orientation = quatMultiply(e.q, s.orientation);
+            // Normalize each accumulation so a long rotation stream can't drift
+            // into a non-unit quaternion (which shears the model).
+            s.orientation = quatNormalize(quatMultiply(e.q, s.orientation));
           });
         } else {
           // Prefer the left-hand rotation target; fall back to the held part
@@ -125,7 +134,7 @@ export class HologramPresenter implements Consumer {
           if (id) {
             this.mutate((s) => {
               const cur = s.partRotations[id] ?? IDENTITY_QUAT;
-              s.partRotations = { ...s.partRotations, [id]: quatMultiply(e.q, cur) };
+              s.partRotations = { ...s.partRotations, [id]: quatNormalize(quatMultiply(e.q, cur)) };
             });
           }
         }
@@ -363,7 +372,7 @@ export class HologramPresenter implements Consumer {
       const base = DEFAULT_STATE.spin.speed;
       this.state.spin.speed += (base - this.state.spin.speed) * (1 - Math.exp(-dt / SPIN_DECAY_TAU));
       const dq = quatFromAxisAngle(UP, this.state.spin.speed * dt);
-      this.state.orientation = quatMultiply(dq, this.state.orientation);
+      this.state.orientation = quatNormalize(quatMultiply(dq, this.state.orientation));
       this.publish();
     }
 
@@ -394,6 +403,45 @@ export class HologramPresenter implements Consumer {
         s.model = next.model;
         s.compareTo = next.compare_to ?? null;
       });
+    w.setClippyState = (action: string) => this.setClippy(action);
+    // Zoom by a signed factor (gesture convention: >0 = zoom in / closer).
+    w.nudgeZoom = (delta: number) =>
+      this.mutate((s) => (s.zoom = clampZoom(s.zoom * (1 - delta))));
+    w.resetView = () => this.resetView();
+  }
+
+  /** Restore the view fields (orientation/zoom/explode/spin/mode) to defaults,
+   *  keeping the current model + Clippy. Mirrored to the follower via state. */
+  private resetView(): void {
+    this.snapping = false;
+    this.mutate((s) => {
+      s.orientation = { x: 0, y: 0, z: 0, w: 1 };
+      s.position = { x: 0, y: 0, z: 0 };
+      s.partOffsets = {};
+      s.zoom = DEFAULT_STATE.zoom;
+      s.explode = 0;
+      s.spin = { on: false, speed: DEFAULT_STATE.spin.speed };
+      s.renderMode = 'solid';
+      s.focusPart = null;
+    });
+  }
+
+  /** Set Clippy's emote; transient emotes auto-revert to idle so it settles.
+   *  Routed through ModelState so the hologram follower mirrors it (and its
+   *  revert) over holoSync. */
+  private setClippy(action: string): void {
+    const emote = action || 'idle';
+    window.clearTimeout(this.clippyRevertTimer);
+    this.mutate((s) => {
+      s.clippy = emote;
+    });
+    if (TRANSIENT_EMOTES.has(emote)) {
+      this.clippyRevertTimer = window.setTimeout(() => {
+        this.mutate((s) => {
+          s.clippy = 'idle';
+        });
+      }, CLIPPY_REVERT_MS);
+    }
   }
 }
 
@@ -404,4 +452,7 @@ interface HologramWindow extends Window {
   setTurntable(opts: { on: boolean; speed?: number }): void;
   focusPart(partId: string | null): void;
   setModelState(next: { model: string; compare_to?: string | null }): void;
+  setClippyState(action: string): void;
+  nudgeZoom(delta: number): void;
+  resetView(): void;
 }

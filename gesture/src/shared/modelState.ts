@@ -46,7 +46,7 @@ export interface ModelState {
 }
 
 export const DEFAULT_STATE: ModelState = {
-  model: 'clippy',
+  model: 'surface_pro_11',
   compareTo: null,
   orientation: { ...IDENTITY_QUAT },
   position: { x: 0, y: 0, z: 0 },

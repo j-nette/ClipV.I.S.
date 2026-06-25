@@ -22,6 +22,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Quat } from '../types';
 import type { ModelState } from './modelState';
+import { Clippy } from './clippy';
 
 /** A material we can recolor / wireframe / fade, across placeholder + glTF materials. */
 type TunableMaterial = THREE.Material & {
@@ -144,6 +145,12 @@ export class ModelScene {
   /** Bumped on every setModels() so stale async glTF loads are discarded. */
   private loadToken = 0;
 
+  /** Persistent mascot — lives OUTSIDE the pivot so model swaps/rotation/explode
+   *  never touch it. Driven by ModelState.clippy via applyState(). */
+  private readonly clippy = new Clippy();
+  private readonly clock = new THREE.Clock();
+  private elapsed = 0;
+
   private model = '';
   private compareTo: string | null = null;
 
@@ -164,6 +171,10 @@ export class ModelScene {
     this.pivot.add(this.modelGroup);
     this.pivot.add(this.compareGroup);
     this.scene.add(this.pivot);
+
+    // Clippy stands beside the product, as a persistent companion.
+    this.clippy.object.position.set(-2.6, 0.2, 0.4);
+    this.scene.add(this.clippy.object);
   }
 
   /** All pickable part roots (across model + compare groups). */
@@ -198,7 +209,7 @@ export class ModelScene {
     if (s.model !== this.model || s.compareTo !== this.compareTo) {
       this.setModels(s.model, s.compareTo);
     }
-    this.pivot.quaternion.copy(toThree(s.orientation));
+    this.pivot.quaternion.copy(toThree(s.orientation)).normalize();
     this.pivot.position.set(s.position.x, s.position.y, s.position.z);
     // Ease the actual displacement toward the target so explode animates.
     this.explodeAmount += (s.explode - this.explodeAmount) * EXPLODE_SPEED;
@@ -207,6 +218,12 @@ export class ModelScene {
     this.applyPartRotations(s.partRotations);
     this.applyPartScales(s.partScales);
     this.refreshMaterials(s);
+
+    // Persistent mascot: reflect the synced emote and advance its animation.
+    // Both windows call applyState() every frame, so Clippy stays alive in each.
+    this.elapsed += this.clock.getDelta();
+    this.clippy.setEmote(s.clippy);
+    this.clippy.update(this.elapsed, 0);
   }
 
   /** All pickable part ids currently in the model. */

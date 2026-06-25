@@ -11,6 +11,7 @@ import { GestureController } from './gestureController';
 import type { Mode } from './gestureController';
 import type { Consumer, ManipulationScope } from './types';
 import { clearStoredOrbs } from '../../info/data/orbStore';
+import { setupVoiceUI } from './voice/voiceUI';
 
 /**
  * Bootstrap. Phase 0: consumer + keyboard fallback. Phase 1: also start the
@@ -42,6 +43,10 @@ async function main(): Promise<void> {
     : new HologramPresenter(container);
 
   if (!useStandalone) setupHologramLauncher();
+
+  // Presenter mode owns the model state, so it also hosts the voice command bar
+  // (Track A): spoken/typed commands → POST /agent → window.setModelState/etc.
+  if (!useStandalone) setupVoiceUI();
 
   gestureBus.on((e) => consumer.handle(e));
 

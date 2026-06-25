@@ -1,44 +1,78 @@
 # ClipV.I.S. — Handoff / State of the Build
 
-> Snapshot for anyone (teammate or future session) picking this up. Last updated by Gebril's session.
-> Branch with all of this: **`dev/voice-agent`** (open a PR into `main`).
+> Snapshot for anyone (teammate or future session) picking this up.
+> Branch with the consolidated build: **`integrate/voice-clippy-gestures`** (off `main`, which
+> already has the gesture app + Kevin's hand-gesture improvements). Open a PR into `main`.
 
 ---
 
 ## What ClipV.I.S. is
-A voice-controlled holographic meeting assistant. You say *"Clippy, show me the Xbox controller"* →
-a **Clippy mascot** brings up a **3D model** that floats in a physical **Pepper's Ghost pyramid**,
-narrating in a charming voice. Brain is a real LLM; data comes from **Microsoft Fabric**.
+A voice- **and gesture**-controlled holographic meeting assistant. You say *"Clippy, show me the
+Xbox controller"* (or pinch/point in the air) → a **Clippy mascot** stands by while a **3D model**
+floats in a physical **Pepper's Ghost pyramid**, narrating in a charming voice. Brain is a real
+LLM; data comes from **Microsoft Fabric**.
 
 ---
 
+## 🏗 Architecture — two windows, one shared state (READ THIS FIRST)
+
+The frontend is now the **TypeScript + Vite app in `gesture/`** (not the old `voice/` page). It runs
+as **two browser windows** on the same machine, synced by a `BroadcastChannel`:
+
+| Window | URL | Role |
+|---|---|---|
+| **Presenter** (the operator drives this) | `http://localhost:5173/` | Single perspective camera. OWNS the shared `ModelState`. Hosts the **voice command bar**, **hand-gesture** input, keyboard. Clippy stands beside the model. |
+| **Hologram** (what the audience sees) | `/hologram.html` (🔺 button opens it) | Four-camera pinwheel for the acrylic pyramid. Pure follower — mirrors `ModelState`, no input. Drag to the flat display under the pyramid, F11. |
+
+**One source of truth:** `gesture/src/shared/modelState.ts`. The presenter
+(`consumers/hologramPresenter.ts`) is the only writer; `holoSync.ts` broadcasts every change.
+Voice, hand gestures, and keyboard **all drive the same `window.*` hooks** → the same state →
+both windows stay coherent. Adding an input or a feature = mutate `ModelState`, never touch the
+follower directly.
+
 ## ✅ What works right now (run it and see)
 
+Two processes — the agent backend (LLM/TTS/models) and the gesture frontend:
+
 ```bash
-cd agent
-npm install
-copy .env.example .env   # then fill keys (see below) — or run mock with no keys
-npm start                # serves the whole app at http://localhost:3000
+# Terminal 1 — backend on :3000 (LLM brain, /agent, /tts, /assets, /models)
+cd agent && npm install && npm start
+
+# Terminal 2 — gesture frontend on :5173 (presenter + hologram follower)
+cd gesture && npm install && npm run dev
 ```
 
-Open **http://localhost:3000**:
-- Click **Listen** (works in **Edge**; Chrome's speech is blocked on corp net → auto-falls back to
-  on-device Whisper) OR type in the box OR press hotkeys **1–5**.
-- Say/type *"show me the Xbox controller"* → model swaps, Clippy reacts, voice narrates.
-- Press **H** → **pyramid mode** (4-view pinwheel for the acrylic). Tune with `[ ] - = , . ; ' 0`.
+Open **http://localhost:5173/** (the presenter):
+- **Voice/text command bar:** type, click a quick-chip, or 🎙️ **Listen** (Web Speech in **Edge**;
+  auto-falls back to **on-device Whisper** when corp net blocks cloud speech). Always-on text box.
+- *"show me the Xbox controller"* → model swaps, Clippy goes *presenting*, voice narrates.
+- *"zoom in" · "spin it" · "explode the controller" · "show me the back" · "wireframe" · "reset"* →
+  voice-driven **manipulation** (mirrors the hand gestures).
+- *"wow, amazing!"* → Clippy *celebrates*; *"hi"* → *waves* (phrase-driven emotes, auto-revert).
+- **Hand gestures** (Kevin): pinch to grab/translate, twist to rotate, two-hand scale, three-finger
+  for the whole assembly; explode/focus/snap-view/render-mode/turntable wired to poses. Keyboard
+  fallbacks for all (`P/G/B`, `Q-E/R-F/C-V`, `Z/X`, `O/M/T/[ ]/1-4/K`).
+- Click **🔺 Open hologram window** → the pyramid follower mirrors everything.
+
+> Legacy: the original single-page voice app is still served at **http://localhost:3000** (`voice/`,
+> with `H`=pyramid toggle). Kept as a standalone fallback; the gesture app at :5173 is the main build.
 
 | Layer | Status | Notes |
 |---|---|---|
 | LLM brain | ✅ real gpt-4o | via **GitHub Models** (Foundry was RBAC-gated for interns) |
 | Voice in | ✅ | Edge Web Speech; on-device Whisper (transformers.js) fallback for corp net |
-| Voice out | ✅ | ElevenLabs voice **Charlie** (`IKne3meq5aSn9XLyUdCD`), live; clip-player + browser fallback |
-| Clippy mascot | ✅ | real rigged `clippy.glb`, idle/presenting/confused animations |
-| 3D model swap | ✅ | placeholders now; auto-load real `.glb` when dropped in `models/` |
-| Hologram pyramid | ✅ | render-to-texture pinwheel, live-tunable, persisted to localStorage |
-| Fabric data | ⚠️ wired, mock on corp | corp net blocks SQL redirect ports 11000–11999; serves identical mock mirror |
-| Fallbacks | ✅ | text box + hotkeys 1–5; keyboard-safe for the demo |
+| Voice out | ✅ | ElevenLabs voice **Charlie** (`IKne3meq5aSn9XLyUdCD`); clip-player + browser fallback |
+| Voice → presenter | ✅ | command bar in `gesture/src/voice/` drives `window.setModelState` etc. |
+| Voice manipulation | ✅ | `manipulate` intent + `action` field → zoom/spin/explode/view/render/reset |
+| Hand gestures | ✅ | MediaPipe Hands, One-Euro smoothing, two-hand control, poses → same hooks (Kevin) |
+| Clippy mascot | ✅ | persistent companion in TS; idle/wave/thinking/presenting/celebrating/confused |
+| 3D model swap | ✅ | multi-part placeholders; auto-load real `.glb` from `/assets/<id>.glb` |
+| Hologram pyramid | ✅ | four-camera pinwheel follower window (`/hologram.html`) |
+| Fabric data | ⚠️ wired, mock on corp | corp net blocks SQL redirect ports 11000–11999; identical mock mirror |
+| Fallbacks | ✅ | text box + quick-chips + keyboard for every gesture; demo-safe |
 
 ---
+
 
 ## 🔑 Configuration (`agent/.env`)
 Copy `agent/.env.example` → `agent/.env`. With **no keys it runs in mock mode** (keyword parser +
@@ -63,26 +97,36 @@ session should be rotated.
 `POST /agent  { user_text, current_model }  ->`
 ```json
 {
-  "intent": "show_model | lookup_spec | compare | chat | unknown",
+  "intent": "show_model | lookup_spec | compare | manipulate | chat | unknown",
   "model": "<id|null>",
   "compare_to": "<id|null>",
-  "clippy": "presenting | idle | confused",
+  "action": "<manipulation action|null>",
+  "clippy": "idle | presenting | thinking | wave | celebrating | confused",
   "narration": "<short in-character line>"
 }
 ```
-This is the interface between `voice/`, `hologram/`, and `clippy/`. Keep it stable.
+`action` is set only when `intent` is `manipulate` (else null); values: `zoom_in`, `zoom_out`,
+`spin_on`, `spin_off`, `explode`, `collapse`, `view_front`, `view_back`, `view_top`, `view_iso`,
+`wireframe`, `xray`, `solid`, `reset`. Both `action` and the wider `clippy` emote set are
+**additive** — older consumers that ignore them keep working. This is the interface between the
+voice client, the presenter, and Clippy. Keep it stable.
 
-Endpoints: `POST /agent`, `POST /tts`, `GET /models`, static `/` (frontend) and `/assets` (`.glb`).
+Endpoints: `POST /agent`, `POST /tts`, `GET /models`, static `/` (legacy voice page) and `/assets` (`.glb`).
 
 ---
 
 ## 🗂 Repo layout
 ```
 agent/      Node+Express backend: LLM (GitHub Models/Foundry/mock), Fabric, /tts, clip-player
-voice/      Frontend: 3D scene (scene.js), voice client (app.js), on-device STT (stt.js), clips/
-models/     3D .glb assets + hero-model checklist  (drop real models here, named per models.js)
+gesture/    MAIN frontend (TS+Vite): presenter + hologram follower, voice bar, hand gestures, Clippy
+  src/voice/        voiceClient + voiceUI + on-device Whisper (stt.ts) — drives the presenter
+  src/shared/       modelState (source of truth), holoSync, modelScene, clippy
+  src/consumers/    hologramPresenter (owns state), standaloneScene
+  src/hologram/     four-camera pinwheel follower (/hologram.html)
+voice/      LEGACY single-page app (scene.js/app.js/stt.js) still served at :3000 as a fallback
+models/     3D .glb assets + hero-model checklist (auto-load from /assets/<id>.glb)
 clippy/     mascot animation notes
-hologram/   pyramid renderer notes (the working renderer currently lives in voice/scene.js)
+hologram/   pyramid renderer notes + INTEGRATION-HANDOFF.md (two-display pipeline)
 hardware/   physical pyramid build notes
 demo/       demo script + backup video + submission
 docs/       project-brief.md (master spec)
@@ -90,14 +134,19 @@ docs/       project-brief.md (master spec)
 
 ---
 
-## 🔌 Integration hooks for hologram/ + clippy/
-`voice/scene.js` currently implements the hologram itself and exposes:
+## 🔌 Integration hooks (presenter `window.*`, driven by voice + gesture + keyboard)
+`gesture/src/consumers/hologramPresenter.ts` owns `ModelState` and exposes:
 ```js
-window.setSceneState({ model, compare_to });  // load/swap 3D model(s)
-window.setClippyState("presenting"|"idle"|"confused");  // mascot reaction
+window.setModelState({ model, compare_to });   // load/swap 3D model(s)
+window.setClippyState("presenting"|"idle"|"wave"|"thinking"|"celebrating"|"confused");
+window.setExplode(0..1);  window.setRenderMode("solid"|"wireframe"|"xray");
+window.snapToView("front"|"iso"|"top"|"back");  window.setTurntable({ on, speed });
+window.focusPart(partId|null);  window.nudgeZoom(delta);  window.resetView();
 ```
-`voice/app.js` calls these after each agent response. When the hologram team formalizes their own
-module, adopt this same contract.
+Every input path (voice client, hand gestures, keyboard) calls these; the presenter mutates
+`ModelState` and `holoSync` mirrors it to the `/hologram.html` follower. The legacy `voice/scene.js`
+exposes the older `setSceneState`/`setClippyState` pair for the :3000 fallback page only.
+
 
 ---
 
