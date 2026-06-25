@@ -59,8 +59,8 @@ export type GestureEvent =
   | { type: 'rotate'; q: Quat; scope: ManipulationScope }
   /** Rotation grab ends; clears the rotation target. */
   | { type: 'rotate_end'; scope: ManipulationScope }
-  /** Two-hand scale begins; `ndc` (midpoint) picks the target part for object scope. */
-  | { type: 'scale_start'; ndc: NDC; scope: ManipulationScope }
+  /** Two-hand scale begins; `ndc`/`ndcB` are the two pinch points to pick the target part. */
+  | { type: 'scale_start'; ndc: NDC; ndcB: NDC; scope: ManipulationScope }
   /** Incremental zoom. Signed scalar: >0 = zoom in, <0 = zoom out. */
   | { type: 'zoom'; delta: number; scope: ManipulationScope }
   /** Two-hand scale ends; clears the scale target. */

@@ -295,6 +295,25 @@ export class ModelScene {
     return null;
   }
 
+  /** Part whose projected centre is closest to an NDC point (raycast-miss fallback). */
+  pickNearestPartId(ndc: { x: number; y: number }, camera: THREE.Camera): string | null {
+    if (!this.parts.length) return null;
+    this.pivot.updateMatrixWorld(true);
+    let best: string | null = null;
+    let bestD = Infinity;
+    for (const p of this.parts) {
+      p.root.getWorldPosition(_centroid).project(camera);
+      const dx = _centroid.x - ndc.x;
+      const dy = _centroid.y - ndc.y;
+      const d = dx * dx + dy * dy;
+      if (d < bestD) {
+        bestD = d;
+        best = p.partId;
+      }
+    }
+    return best;
+  }
+
   /** Transient hover highlight (presenter `point`); not part of shared state. */
   setHover(partId: string | null): void {
     this.hoverId = partId;

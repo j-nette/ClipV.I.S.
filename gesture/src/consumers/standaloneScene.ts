@@ -159,13 +159,16 @@ export class StandaloneScene implements Consumer {
         break;
       case 'rotate_end':
         break;
-      case 'scale_start':
-        // Object scale targets the box under the pinch midpoint; assembly = all.
+      case 'scale_start': {
+        // Object scale targets the box being gripped: try each pinch point and
+        // their midpoint so a two-hand grab around a box reliably selects it.
         if (e.scope !== 'assembly') {
-          const hit = this.pickBox(e.ndc);
+          const mid = { x: (e.ndc.x + e.ndcB.x) / 2, y: (e.ndc.y + e.ndcB.y) / 2 };
+          const hit = this.pickBox(mid) ?? this.pickBox(e.ndc) ?? this.pickBox(e.ndcB);
           if (hit) this.focused = hit;
         }
         break;
+      }
       case 'zoom':
         if (e.scope === 'assembly') this.zoomAssembly(e.delta);
         else this.applyZoom(e.delta);

@@ -377,9 +377,8 @@ export class GestureController {
       this.scaleScope = a.threeFinger && b.threeFinger ? 'assembly' : 'object';
       this.scope = this.scaleScope;
       this.prevDist = d;
-      // Midpoint between the two pinches picks the target part (object scope).
-      const mid = { x: (a.anchor.x + b.anchor.x) / 2, y: (a.anchor.y + b.anchor.y) / 2 };
-      this.emit({ type: 'scale_start', ndc: mid, scope: this.scaleScope });
+      // The two pinch points let the consumer pick the part being scaled.
+      this.emit({ type: 'scale_start', ndc: a.anchor, ndcB: b.anchor, scope: this.scaleScope });
       return;
     }
     if (this.prevDist > 1e-4) {

@@ -154,14 +154,17 @@ describe('GestureController (manipulation)', () => {
     expect(controller.state).toBe('scale');
   });
 
-  it('two-hand scale emits scale_start (midpoint) then scale_end on release', () => {
+  it('two-hand scale emits scale_start (both pinch points) then scale_end on release', () => {
     const { controller, events } = makeController();
     const right = (x: number) => hand({ label: 'Right', pinchRatio: 0.2, anchor: { x, y: 0 } });
     const left = (x: number) => hand({ label: 'Left', pinchRatio: 0.2, anchor: { x, y: 0 } });
-    controller.update([right(0.2), left(-0.2)]); // scale starts, midpoint x = 0
+    controller.update([right(0.2), left(-0.2)]); // scale starts
     const start = events.find((e) => e.type === 'scale_start');
     expect(start).toBeDefined();
-    if (start && start.type === 'scale_start') expect(start.ndc.x).toBeCloseTo(0);
+    if (start && start.type === 'scale_start') {
+      expect(start.ndc.x).toBeCloseTo(0.2); // right pinch
+      expect(start.ndcB.x).toBeCloseTo(-0.2); // left pinch
+    }
     controller.update([]); // hands lost → release
     expect(types(events)).toContain('scale_end');
   });
