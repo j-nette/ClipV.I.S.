@@ -185,6 +185,16 @@ export interface HandObservation {
   indexPalmClearance: number;
   /** True when the middle fingertip also joins the pinch (thumb+index+middle). */
   threeFinger: boolean;
+  /** All four fingers curled into the palm (a closed fist). */
+  fist: boolean;
+  /** All four fingers extended (an open palm). */
+  openPalm: boolean;
+  /** Number of extended fingers (index..pinky), 0–4 — for finger-count commands. */
+  fingerCount: number;
+  /** Index + middle extended and held together, ring + pinky curled (the swipe pose). */
+  indexMiddle: boolean;
+  /** Normalized thumb-tip→middle-tip distance — for the render-mode snap/tap. */
+  thumbMiddleRatio: number;
   /**
    * Apparent hand size (wrist→middle-knuckle distance in normalized image
    * coords) used as a robust proxy for distance to the camera: it grows as the
@@ -225,6 +235,20 @@ export function observeHand(hand: HandLandmarks, label: string): HandObservation
   const thumbMiddle = dist(hand[LM.THUMB_TIP], hand[LM.MIDDLE_TIP]) / handSize;
   const threeFinger = base.pinch && thumbMiddle < MIDDLE_PINCH_THRESHOLD;
 
+  // Pose primitives for the discrete command gestures (explode, snap-view,
+  // render-mode, turntable). Finger extension uses the same tip-vs-PIP test as
+  // the point/create poses, so it's only meaningful with the hand held upright.
+  const idx = isExtended(hand, LM.INDEX_TIP, LM.INDEX_PIP);
+  const mid = isExtended(hand, LM.MIDDLE_TIP, LM.MIDDLE_PIP);
+  const rng = isExtended(hand, LM.RING_TIP, LM.RING_PIP);
+  const pky = isExtended(hand, LM.PINKY_TIP, LM.PINKY_PIP);
+  const fingerCount = (idx ? 1 : 0) + (mid ? 1 : 0) + (rng ? 1 : 0) + (pky ? 1 : 0);
+  const fist = isFist(hand, handSize);
+  const openPalm = idx && mid && rng && pky;
+  const indexMiddle =
+    idx && mid && !rng && !pky &&
+    dist(hand[LM.INDEX_TIP], hand[LM.MIDDLE_TIP]) / handSize < 0.6;
+
   return {
     label,
     point: base.point,
@@ -234,6 +258,11 @@ export function observeHand(hand: HandLandmarks, label: string): HandObservation
     createPoseRatio: base.createPoseRatio,
     indexPalmClearance: base.indexPalmClearance,
     threeFinger,
+    fist,
+    openPalm,
+    fingerCount,
+    indexMiddle,
+    thumbMiddleRatio: thumbMiddle,
     depth: handSize,
     cursor: base.cursor ?? index,
     anchor,

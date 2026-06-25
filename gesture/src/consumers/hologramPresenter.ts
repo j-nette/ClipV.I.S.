@@ -31,6 +31,8 @@ const UP = { x: 0, y: 1, z: 0 };
 const CAMERA_DIR = new THREE.Vector3(0, 0.25, 1).normalize();
 /** Seconds for a snap-to-view animation. */
 const SNAP_DURATION = 0.6;
+/** Time constant (s) for a swipe-flung spin to ease back to the base speed. */
+const SPIN_DECAY_TAU = 1.2;
 /** Per-part scale clamp (two-hand object scale). */
 const MIN_PART_SCALE = 0.2;
 const MAX_PART_SCALE = 5;
@@ -356,6 +358,10 @@ export class HologramPresenter implements Consumer {
     // The presenter is the single owner of time-based motion: advance the spin
     // and broadcast so the follower purely applies the received orientation.
     if (this.state.spin.on) {
+      // Momentum: a swipe-boosted spin eases back toward the base speed so a
+      // fast fling gradually settles into a steady turntable.
+      const base = DEFAULT_STATE.spin.speed;
+      this.state.spin.speed += (base - this.state.spin.speed) * (1 - Math.exp(-dt / SPIN_DECAY_TAU));
       const dq = quatFromAxisAngle(UP, this.state.spin.speed * dt);
       this.state.orientation = quatMultiply(dq, this.state.orientation);
       this.publish();

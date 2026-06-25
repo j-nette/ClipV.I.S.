@@ -15,6 +15,11 @@ function hand(partial: Partial<HandObservation> = {}): HandObservation {
     createPoseRatio: 1,
     indexPalmClearance: 1,
     threeFinger: false,
+    fist: false,
+    openPalm: false,
+    fingerCount: 0,
+    indexMiddle: false,
+    thumbMiddleRatio: 1,
     depth: 0.2,
     cursor: { x: 0, y: 0 },
     anchor: { x: 0, y: 0 },
@@ -306,5 +311,59 @@ describe('GestureController (manipulation)', () => {
     controller.update([]); // no hands
     expect(types(events)).toEqual(['pinch_end']);
     expect(controller.state).toBe('idle');
+  });
+});
+
+describe('GestureController (command gestures)', () => {
+  it('two fists charged, then opened and spread, emit explode (not a view snap)', () => {
+    const { controller, events } = makeController();
+    const fist = (label: string, x: number) => hand({ label, fist: true, cursor: { x, y: 0 } });
+    for (let i = 0; i < 11; i++) controller.update([fist('Left', -0.2), fist('Right', 0.2)]); // charge
+    const open = (label: string, x: number) =>
+      hand({ label, openPalm: true, fingerCount: 4, cursor: { x, y: 0 } });
+    controller.update([open('Left', -1), open('Right', 1)]); // open + spread
+    const ex = events.find((e) => e.type === 'explode');
+    expect(ex).toBeDefined();
+    if (ex && ex.type === 'explode') expect(ex.factor).toBeGreaterThan(0.5);
+    expect(types(events)).not.toContain('snap_view');
+  });
+
+  it('holding N fingers on the left hand snaps the view', () => {
+    const { controller, events } = makeController();
+    const left = (n: number) => hand({ label: 'Left', fingerCount: n });
+    for (let i = 0; i < 8; i++) controller.update([left(2)]); // hold "2" past SNAP_HOLD_FRAMES
+    const snap = events.find((e) => e.type === 'snap_view');
+    expect(snap).toBeDefined();
+    if (snap && snap.type === 'snap_view') expect(snap.name).toBe('iso');
+  });
+
+  it('a thumb-middle contact then release cycles the render mode', () => {
+    const { controller, events } = makeController();
+    controller.update([hand({ label: 'Right', thumbMiddleRatio: 0.2 })]); // contact
+    controller.update([hand({ label: 'Right', thumbMiddleRatio: 0.9 })]); // release → snap
+    const rm = events.find((e) => e.type === 'render_mode');
+    expect(rm).toBeDefined();
+    if (rm && rm.type === 'render_mode') expect(rm.dir).toBe('next');
+  });
+
+  it('a two-finger swipe flings the spin; holding still stops it', () => {
+    const { controller, events } = makeController();
+    const two = (x: number) => hand({ label: 'Right', indexMiddle: true, cursor: { x, y: 0 } });
+    controller.update([two(0)]); // seed
+    controller.update([two(0.2)]); // fast swipe → fling
+    const on = events.find((e) => e.type === 'turntable' && e.on === true);
+    expect(on).toBeDefined();
+    if (on && on.type === 'turntable') expect(Math.abs(on.speed ?? 0)).toBeGreaterThan(0);
+    for (let i = 0; i < 13; i++) controller.update([two(0.2)]); // held still
+    expect(events.some((e) => e.type === 'turntable' && e.on === false)).toBe(true);
+  });
+
+  it('point-and-dwell emits a focus on the dwell spot', () => {
+    const { controller, events } = makeController();
+    const pt = hand({ label: 'Right', point: true, cursor: { x: 0.2, y: 0.1 } });
+    for (let i = 0; i < 18; i++) controller.update([pt]); // hold past FOCUS_DWELL_FRAMES
+    const f = events.find((e) => e.type === 'focus');
+    expect(f).toBeDefined();
+    if (f && f.type === 'focus') expect(f.ndc?.x).toBeCloseTo(0.2);
   });
 });
