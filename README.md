@@ -4,11 +4,22 @@
 
 **Bring the thing you're talking about into the room.**
 
-An interactive Pepper's Ghost hologram for your meeting table. Clippy saw your struggles with clear and engaging meetings about hardware so Clippy materialized into 3D space thelps you view and organize your presentation media! (Thanks APC for sharing your pain points!)
+An interactive Pepper's Ghost hologram for your meeting table. Clippy saw your struggles with clear and engaging meetings about hardware so Clippy materialized into 3D space that helps you view and organize your presentation media! (Thanks APC for sharing your pain points!)
 
-Say *"Clippy, show me Xbox Controller V2"* and the at-scale part is projected in 3D. Gesture-based commands allow users to interact with information markers, explode assemblies, and toggle between viewing modes. CLippy can also narrate specs from Microsoft Fabric and help answer questions with a a real LLM brain. 
+Say *"Clippy, show me Xbox Controller V2"* and the at-scale part is projected in 3D. Gesture-based commands allow users to interact with information markers, explode assemblies, and toggle between viewing modes. Clippy can also narrate specs from Microsoft Fabric and help answer questions with a real LLM brain.
 
-Microsoft Intern Hackathon 2026.
+Microsoft Intern Hackathon 2026 · **Challenge: Customer Engagement & Support.**
+
+### For judges — the 30-second version
+- **What:** a voice- and gesture-controlled **holographic product assistant** for customer meetings. Ask for any product and it floats — at scale, in 3D — on the table for everyone to see, narrated with live data.
+- **For whom:** Microsoft **sellers, solution engineers, and customer-success/support teams** (MCAPS) who pitch and support physical products.
+- **The pain:** product conversations happen over **flat slides** — the room disengages and remote attendees see even less.
+- **Business value:** flat pitches become interactive product experiences → **more engagement, more memorable meetings, faster deals, real differentiation**. Explode/x-ray views explain how a product works and how to service it → **better supportability**.
+- **Built on the Microsoft stack we sell:** Azure AI Foundry / GitHub Models brain + **Microsoft Fabric** data (dogfooding).
+- **Status — working today:** real LLM, voice in/out, hand gestures, four-camera Pepper's-Ghost pyramid; runs on a laptop + a ~$30 acrylic pyramid and a tablet.
+- **Next steps:** Teams integration so remote attendees see the holo feed, a Fabric-backed live product catalog, per-part CAD hero models, cross-machine sync.
+
+> 🎬 Submission video script + shot list: [`demo/script.md`](demo/script.md).
 
 ---
 
