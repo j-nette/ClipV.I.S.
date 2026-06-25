@@ -32,6 +32,7 @@ function makeController() {
     pinchOff: 0.5,
     palmClearance: 0.6,
     releaseFrames: 1, // release immediately unless a test opts into the debounce
+    holdFrames: 0, // no tracking-dropout grace unless a test opts in
     emit: (e) => events.push(e),
   });
   return { controller, events };
@@ -245,6 +246,47 @@ describe('GestureController (manipulation)', () => {
     controller.update([right(0.2)]); // re-pinched → grip held throughout
     expect(controller.state).toBe('grab');
     expect(types(events)).not.toContain('pinch_end');
+  });
+
+  it('holds the grab through a brief tracking dropout (hand-loss grace)', () => {
+    const events: GestureEvent[] = [];
+    const controller = new GestureController({
+      pinchOn: 0.35,
+      pinchOff: 0.5,
+      palmClearance: 0.6,
+      releaseFrames: 1,
+      holdFrames: 3, // hold up to 3 missing frames
+      emit: (e) => events.push(e),
+    });
+    const right = () => hand({ label: 'Right', pinchRatio: 0.2 });
+    controller.update([right()]); // grab
+    expect(controller.state).toBe('grab');
+    controller.update([]); // hand vanished (dropout) → held, not dropped
+    controller.update([]); // still held
+    expect(controller.state).toBe('grab');
+    expect(types(events)).not.toContain('pinch_end');
+    controller.update([right()]); // hand back → grab continues uninterrupted
+    expect(controller.state).toBe('grab');
+    expect(types(events)).not.toContain('pinch_end');
+  });
+
+  it('drops the grab after the dropout grace expires', () => {
+    const events: GestureEvent[] = [];
+    const controller = new GestureController({
+      pinchOn: 0.35,
+      pinchOff: 0.5,
+      palmClearance: 0.6,
+      releaseFrames: 1,
+      holdFrames: 2,
+      emit: (e) => events.push(e),
+    });
+    const right = () => hand({ label: 'Right', pinchRatio: 0.2 });
+    controller.update([right()]); // grab
+    controller.update([]); // miss 1 (held)
+    controller.update([]); // miss 2 (held)
+    controller.update([]); // beyond grace → drop
+    expect(types(events)).toContain('pinch_end');
+    expect(controller.state).toBe('idle');
   });
 
   it('releases an active grab if the hand curls into a fist', () => {

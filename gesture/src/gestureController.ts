@@ -40,6 +40,12 @@ export interface ControllerOptions {
    * so the grip doesn't slip. 1 = release immediately.
    */
   releaseFrames?: number;
+  /**
+   * Frames an active grab is held when its hand vanishes from the frame
+   * (a tracking dropout, common during fast motion) before it's dropped. The
+   * grab resumes seamlessly if the hand reappears within this window.
+   */
+  holdFrames?: number;
   /** EMA smoothing factor for anchors, 0..1 (higher = more responsive). */
   smoothing?: number;
   /** Min |left-hand move| (NDC) per frame before a rotate is emitted — kills jitter. */
@@ -75,6 +81,7 @@ export class GestureController {
   private readonly pinchOff: number;
   private readonly palmClearance: number;
   private readonly releaseFrames: number;
+  private readonly holdFrames: number;
   private readonly alpha: number;
   private readonly rotateMoveDeadzone: number;
   private readonly rotateGain: number;
@@ -103,6 +110,8 @@ export class GestureController {
   /** Smoothed apparent hand size, and the last value depth was emitted from. */
   private smoothedDepth = 0;
   private prevDepth = 0;
+  /** Consecutive frames the gripping hand has been missing (tracking dropout). */
+  private transMiss = 0;
 
   // rotation session (left hand)
   private rotActive = false;
@@ -112,6 +121,8 @@ export class GestureController {
   /** Smoothed left-hand size + last value depth-roll was measured from. */
   private rotSmoothedDepth = 0;
   private rotPrevDepth = 0;
+  /** Consecutive frames the rotating hand has been missing (tracking dropout). */
+  private rotMiss = 0;
 
   // point session
   private pointActive = false;
@@ -130,7 +141,8 @@ export class GestureController {
     this.pinchOn = opts.pinchOn ?? PINCH_THRESHOLD;
     this.pinchOff = opts.pinchOff ?? PINCH_THRESHOLD + 0.1;
     this.palmClearance = opts.palmClearance ?? INDEX_PALM_CLEARANCE;
-    this.releaseFrames = Math.max(1, opts.releaseFrames ?? 3);
+    this.releaseFrames = Math.max(1, opts.releaseFrames ?? 4);
+    this.holdFrames = Math.max(0, opts.holdFrames ?? 8);
     this.alpha = opts.smoothing ?? 0.5;
     this.rotateMoveDeadzone = opts.rotateMoveDeadzone ?? 0.004;
     this.rotateGain = opts.rotateGain ?? 2.5;
@@ -171,12 +183,13 @@ export class GestureController {
       if (nowCreate && !wasCreate) this.emit({ type: 'orb_create', ndc: h.cursor });
       if (this.applyHysteresis(h)) pinching.push(h);
     }
-    // Forget hands that disappeared.
+    // Forget hands that disappeared — but keep a held grip's pinch state alive
+    // through a brief tracking dropout so the grab can resume seamlessly.
     for (const label of [...this.pinchState.keys()]) {
-      if (!seen.has(label)) {
-        this.pinchState.delete(label);
-        this.releaseCount.delete(label);
-      }
+      if (seen.has(label)) continue;
+      if (label === this.transLabel || label === this.rotLabel) continue;
+      this.pinchState.delete(label);
+      this.releaseCount.delete(label);
     }
     for (const label of [...this.createPoseState.keys()]) {
       if (!seen.has(label)) this.createPoseState.delete(label);
@@ -185,6 +198,12 @@ export class GestureController {
     // Split by role: right hand translates, left hand rotates.
     const translator = pinching.find((h) => this.isTranslator(h.label)) ?? null;
     const rotator = pinching.find((h) => !this.isTranslator(h.label)) ?? null;
+    // A grab whose hand vanished from the frame entirely (vs. still visible but
+    // not pinching) is a tracking dropout — hold it rather than dropping it.
+    const transLost =
+      !translator && this.transActive && this.transLabel != null && !seen.has(this.transLabel);
+    const rotLost =
+      !rotator && this.rotActive && this.rotLabel != null && !seen.has(this.rotLabel);
 
     // Both hands pinching → scale (distance between them). A single hand keeps
     // translating (right) or rotating (left).
@@ -203,8 +222,8 @@ export class GestureController {
       this.updateScale(translator, rotator, firstAnchor);
     } else {
       this.updateScale(null, null, null); // end any active scale
-      this.updateTranslation(translator);
-      this.updateRotation(rotator);
+      this.updateTranslation(translator, transLost);
+      this.updateRotation(rotator, rotLost);
     }
 
     // Pointing only matters when no hand is manipulating.
@@ -232,9 +251,11 @@ export class GestureController {
     this.transActive = false;
     this.transLabel = null;
     this.smoothed = null;
+    this.transMiss = 0;
     this.rotActive = false;
     this.rotLabel = null;
     this.rotSmoothed = null;
+    this.rotMiss = 0;
     this.scaleActive = false;
     this.pointActive = false;
     this.mode = 'idle';
@@ -291,16 +312,27 @@ export class GestureController {
   }
 
   /** Right-hand translation: follow the pinch anchor + push/pull along depth. */
-  private updateTranslation(h: HandObservation | null): void {
+  private updateTranslation(h: HandObservation | null, lost = false): void {
     if (!h) {
       if (this.transActive) {
+        // Hold the grab through a brief tracking dropout, then drop it.
+        if (lost && this.transMiss < this.holdFrames) {
+          this.transMiss++;
+          return;
+        }
         this.emit({ type: 'pinch_end', scope: this.transScope });
         this.transActive = false;
+        if (this.transLabel) {
+          this.pinchState.delete(this.transLabel);
+          this.releaseCount.delete(this.transLabel);
+        }
         this.transLabel = null;
         this.smoothed = null;
+        this.transMiss = 0;
       }
       return;
     }
+    this.transMiss = 0;
     if (!this.transActive || this.transLabel !== h.label) {
       this.transActive = true;
       this.transLabel = h.label;
@@ -332,16 +364,27 @@ export class GestureController {
   }
 
   /** Left-hand rotation: hand travel → yaw (horizontal) + pitch (vertical). */
-  private updateRotation(h: HandObservation | null): void {
+  private updateRotation(h: HandObservation | null, lost = false): void {
     if (!h) {
       if (this.rotActive) {
+        // Hold the rotation grip through a brief tracking dropout, then drop it.
+        if (lost && this.rotMiss < this.holdFrames) {
+          this.rotMiss++;
+          return;
+        }
         this.emit({ type: 'rotate_end', scope: this.rotScope });
         this.rotActive = false;
+        if (this.rotLabel) {
+          this.pinchState.delete(this.rotLabel);
+          this.releaseCount.delete(this.rotLabel);
+        }
         this.rotLabel = null;
         this.rotSmoothed = null;
+        this.rotMiss = 0;
       }
       return;
     }
+    this.rotMiss = 0;
     if (!this.rotActive || this.rotLabel !== h.label) {
       this.rotActive = true;
       this.rotLabel = h.label;
