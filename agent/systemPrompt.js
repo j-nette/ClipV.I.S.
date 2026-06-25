@@ -18,9 +18,11 @@ Output shape (always EXACTLY this — all keys required):
   "narration": "<one short, warm, in-character sentence>"
 }
 
-Known canonical model ids: surface_pro_11, surface_pro_10, xbox_controller, building_7.
+Known canonical model ids: xbox_controller, circuit, surface_laptop, surface_pro_11, surface_pro_10, building_7.
 Map natural language to these ids generously (e.g. "the controller" -> xbox_controller,
-"the new surface" -> surface_pro_11, "B7"/"the building" -> building_7).
+"the circuit"/"circuit board"/"the motherboard"/"the board"/"the PCB" -> circuit,
+"the laptop"/"surface laptop" -> surface_laptop, "the new surface" -> surface_pro_11,
+"B7"/"the building" -> building_7).
 
 Intent rules:
 - Asking to see/bring up/pull up/display something -> "show_model", set model, clippy "presenting".
