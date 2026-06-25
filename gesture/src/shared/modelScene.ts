@@ -435,12 +435,19 @@ export class ModelScene {
       const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       const cloned = list.map((m) => m.clone() as TunableMaterial);
       mesh.material = Array.isArray(mesh.material) ? cloned : cloned[0];
-      // Sharpen textures at grazing angles (glTF textures default to anisotropy 1).
       for (const m of cloned) {
-        const tex = (m as THREE.MeshStandardMaterial).map;
+        const sm = m as THREE.MeshStandardMaterial;
+        const tex = sm.map;
         if (tex) {
+          // Sharpen at grazing angles (glTF textures default to anisotropy 1).
           tex.anisotropy = 16;
           tex.needsUpdate = true;
+          // Self-illuminate textured parts with their own colour map so dark
+          // materials (e.g. the Surface's near-black metal) stay visible against
+          // the hologram's black background — without losing the texture.
+          sm.emissiveMap = tex;
+          sm.emissive = new THREE.Color(0xffffff);
+          sm.emissiveIntensity = 0.65;
         }
       }
       const partId = mesh.name || `part-${n++}`;
@@ -507,6 +514,10 @@ export class ModelScene {
             mat.emissive.copy(p.baseColors[i]);
             mat.emissiveIntensity = focused || hovered ? 0.7 : 0.3;
           }
+        } else if (mat.emissive) {
+          // Textured part self-illuminates via its colour map (set in addGlbPart);
+          // brighten on focus/hover, otherwise hold a visible base glow.
+          mat.emissiveIntensity = focused || hovered ? 0.9 : 0.65;
         }
 
         let wireframe = false;
