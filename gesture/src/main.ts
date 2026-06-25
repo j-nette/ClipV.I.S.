@@ -25,6 +25,7 @@ async function main(): Promise<void> {
   const statusEl = document.getElementById('status');
   const stateEl = document.getElementById('gesture-state');
   const metricsEl = document.getElementById('metrics');
+  const poseEl = document.getElementById('pose');
   if (!container) throw new Error('#scene container not found');
 
   // `?debug` reveals the skeleton overlay, camera preview, and key help.
@@ -55,7 +56,7 @@ async function main(): Promise<void> {
   new KeyboardFallback().start();
 
   // Camera + hand tracking (additive; keyboard works regardless).
-  await startHandTracking({ overlayCanvas, statusEl, stateEl, metricsEl, debug });
+  await startHandTracking({ overlayCanvas, statusEl, stateEl, metricsEl, poseEl, debug });
 
   console.info(
     '[gesture] Ready. Add ?debug for skeleton + camera preview. ' +
@@ -68,12 +69,13 @@ interface TrackingDeps {
   statusEl: HTMLElement | null;
   stateEl: HTMLElement | null;
   metricsEl: HTMLElement | null;
+  poseEl: HTMLElement | null;
   debug: boolean;
 }
 
 /** Starts the webcam + MediaPipe loop, rendering the live skeleton overlay. */
 async function startHandTracking(deps: TrackingDeps): Promise<void> {
-  const { overlayCanvas, statusEl, stateEl, metricsEl, debug } = deps;
+  const { overlayCanvas, statusEl, stateEl, metricsEl, poseEl, debug } = deps;
   const setStatus = (text: string) => {
     if (statusEl) statusEl.textContent = text;
   };
@@ -98,8 +100,8 @@ async function startHandTracking(deps: TrackingDeps): Promise<void> {
     setStatus('requesting camera…');
     const { video } = await startCamera({ width: 640, height: 480 });
 
-    // Skeleton overlay is debug-only (clean for the real demo).
-    const overlay = debug && overlayCanvas ? new Overlay(overlayCanvas) : null;
+    // Hand skeleton overlay so the user can see where their hands are tracked.
+    const overlay = overlayCanvas ? new Overlay(overlayCanvas) : null;
 
     // Feed per-hand observations through the controller, which applies pinch
     // hysteresis + smoothing and emits manipulation events onto the bus:
@@ -118,6 +120,7 @@ async function startHandTracking(deps: TrackingDeps): Promise<void> {
       });
       overlay?.draw(frame, tints);
       updateStateBadge(stateEl, controller.state, controller.scopeState);
+      updatePoseReadout(poseEl, hands, controller);
       if (debug) updateMetrics(metricsEl, hands);
     });
 
@@ -177,6 +180,39 @@ function updateMetrics(el: HTMLElement | null, hands: HandObservation[]): void {
     return `${h.label.padEnd(5)} ratio ${ratio} clear ${clr} ${pass} ${pose}`;
   });
   el.textContent = `pinch<${PINCH_THRESHOLD}  clear>${INDEX_PALM_CLEARANCE}\n${lines.join('\n')}`;
+}
+
+/** Always-on "Hands" panel: each detected hand and the pose it's currently making. */
+function updatePoseReadout(
+  el: HTMLElement | null,
+  hands: HandObservation[],
+  controller: GestureController,
+): void {
+  if (!el) return;
+  if (!hands.length) {
+    el.innerHTML = '<div class="pose-title">Hands</div><span class="muted">No hands detected</span>';
+    return;
+  }
+  const rows = hands
+    .map((h) => {
+      const side = h.label === 'Left' || h.label === 'Right' ? h.label : 'Hand';
+      const p = describePose(h, controller.isPinching(h.label));
+      return `<div class="pose-row"><span class="pose-hand">${side}</span><span class="pose-name ${p.cls}">${p.label}</span></div>`;
+    })
+    .join('');
+  el.innerHTML = `<div class="pose-title">Hands</div>${rows}`;
+}
+
+/** Human-readable label + colour class for the pose a hand is making. */
+function describePose(h: HandObservation, pinching: boolean): { label: string; cls: string } {
+  if (pinching) return { label: h.threeFinger ? 'Pinch · all' : 'Pinch', cls: 'p-pinch' };
+  if (h.createPose) return { label: 'Rock sign', cls: 'p-create' };
+  if (h.fist) return { label: 'Fist', cls: 'p-fist' };
+  if (h.openPalm) return { label: 'Open palm', cls: 'p-open' };
+  if (h.indexMiddle) return { label: 'Two-finger', cls: 'p-point' };
+  if (h.point) return { label: 'Point', cls: 'p-point' };
+  if (h.fingerCount > 0) return { label: `${h.fingerCount} finger${h.fingerCount > 1 ? 's' : ''}`, cls: '' };
+  return { label: 'Idle', cls: '' };
 }
 
 let toastTimer = 0;
