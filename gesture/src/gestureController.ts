@@ -543,7 +543,6 @@ export class GestureController {
     }
     const d = Math.hypot(a.cursor.x - b.cursor.x, a.cursor.y - b.cursor.y);
     const bothFist = a.fist && b.fist;
-    const bothOpen = a.openPalm && b.openPalm;
     if (!this.explodeArmed) {
       // Charge: both fists held close together.
       if (bothFist && d < EXPLODE_NEAR) {
@@ -557,14 +556,15 @@ export class GestureController {
       }
       return;
     }
-    // Armed: opening + spreading drives the explode factor (and back collapses it).
-    if (bothOpen) {
+    // Armed: while still fisted, keep re-baselining the closed distance; the
+    // moment the hands open (anything but both fists) the spread drives the
+    // explode factor. Stays armed until the hands leave (handled above), so the
+    // brief half-open transition can't drop it. Bring hands back to collapse.
+    if (bothFist) {
+      this.explodeBase = d;
+    } else {
       const factor = clamp((d - this.explodeBase) / EXPLODE_RANGE, 0, 1);
       this.emit({ type: 'explode', factor });
-    } else if (!bothFist) {
-      // Hands relaxed out of both poses — disarm (keeps the last explode amount).
-      this.explodeArmed = false;
-      this.explodeArm = 0;
     }
   }
 
