@@ -10,7 +10,7 @@ import {
 } from '../shared/modelState';
 import { ModelScene } from '../shared/modelScene';
 import { createPresenterSync, type PresenterSync } from '../shared/holoSync';
-import { quatFromAxisAngle, quatMultiply, IDENTITY_QUAT } from '../quat';
+import { quatFromAxisAngle, quatMultiply, quatNormalize, IDENTITY_QUAT } from '../quat';
 
 /**
  * Presenter consumer for the laptop screen — the OWNER of `ModelState`.
@@ -123,7 +123,9 @@ export class HologramPresenter implements Consumer {
         // part the left hand grabbed. A grab on empty space does nothing.
         if (e.scope === 'assembly') {
           this.mutate((s) => {
-            s.orientation = quatMultiply(e.q, s.orientation);
+            // Normalize each accumulation so a long rotation stream can't drift
+            // into a non-unit quaternion (which shears the model).
+            s.orientation = quatNormalize(quatMultiply(e.q, s.orientation));
           });
         } else {
           // Prefer the left-hand rotation target; fall back to the held part
@@ -132,7 +134,7 @@ export class HologramPresenter implements Consumer {
           if (id) {
             this.mutate((s) => {
               const cur = s.partRotations[id] ?? IDENTITY_QUAT;
-              s.partRotations = { ...s.partRotations, [id]: quatMultiply(e.q, cur) };
+              s.partRotations = { ...s.partRotations, [id]: quatNormalize(quatMultiply(e.q, cur)) };
             });
           }
         }
@@ -370,7 +372,7 @@ export class HologramPresenter implements Consumer {
       const base = DEFAULT_STATE.spin.speed;
       this.state.spin.speed += (base - this.state.spin.speed) * (1 - Math.exp(-dt / SPIN_DECAY_TAU));
       const dq = quatFromAxisAngle(UP, this.state.spin.speed * dt);
-      this.state.orientation = quatMultiply(dq, this.state.orientation);
+      this.state.orientation = quatNormalize(quatMultiply(dq, this.state.orientation));
       this.publish();
     }
 
