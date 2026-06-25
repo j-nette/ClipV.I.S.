@@ -80,7 +80,19 @@ async function startHandTracking(deps: TrackingDeps): Promise<void> {
 
   try {
     setStatus('loading hand model…');
-    const tracker = new HandTracker({ numHands: 2 });
+    // Live-tunable responsiveness (no rebuild): e.g. ?mincut=2&beta=0.8&alpha=0.7.
+    // Higher mincut/beta = less landmark lag; higher alpha = snappier follow.
+    const params = new URLSearchParams(location.search);
+    const num = (key: string, fallback: number): number => {
+      const v = Number.parseFloat(params.get(key) ?? '');
+      return Number.isFinite(v) ? v : fallback;
+    };
+    const tracker = new HandTracker({
+      numHands: 2,
+      smoothing: { minCutoff: num('mincut', 1.7), beta: num('beta', 0.5) },
+      minTrackingConfidence: num('track', 0.4),
+      minPresenceConfidence: num('presence', 0.4),
+    });
     await tracker.init();
 
     setStatus('requesting camera…');
@@ -94,8 +106,8 @@ async function startHandTracking(deps: TrackingDeps): Promise<void> {
     //   1 pinch  → grab (translate + 3D rotate)
     //   2 pinch  → scale
     //   point    → highlight
-    const swapHandedness = new URLSearchParams(location.search).has('swaphands');
-    const controller = new GestureController({ swapHandedness });
+    const swapHandedness = params.has('swaphands');
+    const controller = new GestureController({ swapHandedness, smoothing: num('alpha', 0.6) });
     tracker.onResults((frame) => {
       const hands = detectHands(frame.hands, frame.labels);
       controller.update(hands);

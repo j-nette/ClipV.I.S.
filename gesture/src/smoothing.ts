@@ -12,8 +12,8 @@ export class OneEuroFilter {
   private tPrev = 0;
 
   constructor(
-    private readonly minCutoff = 1.0,
-    private readonly beta = 0.3,
+    private readonly minCutoff = 1.7,
+    private readonly beta = 0.5,
     private readonly dCutoff = 1.0,
   ) {}
 
@@ -77,7 +77,7 @@ export class HandSmoother {
     const need = landmarks.length * 3;
     let arr = this.filters.get(label);
     if (!arr || arr.length !== need) {
-      const { minCutoff = 1.0, beta = 0.3, dCutoff = 1.0 } = this.opts;
+      const { minCutoff = 1.7, beta = 0.5, dCutoff = 1.0 } = this.opts;
       arr = Array.from({ length: need }, () => new OneEuroFilter(minCutoff, beta, dCutoff));
       this.filters.set(label, arr);
     }
