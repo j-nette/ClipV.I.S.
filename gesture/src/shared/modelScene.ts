@@ -68,6 +68,9 @@ const EXPLODE_GAP = 0.3;
 /** Easing per frame toward the explode target (0..1). */
 const EXPLODE_SPEED = 0.1;
 
+/** Colour of the edge outline drawn around a pinch-grabbed part. */
+const GRAB_OUTLINE_COLOR = 0x7cffb0;
+
 const _explodeA = new THREE.Vector3();
 const _explodeB = new THREE.Vector3();
 const _deltaInv = new THREE.Matrix4();
@@ -139,6 +142,9 @@ export class ModelScene {
   private readonly loader = new GLTFLoader();
   private parts: PartView[] = [];
   private hoverId: string | null = null;
+  /** Part currently outlined as grabbed, plus the edge lines drawn for it. */
+  private grabbedId: string | null = null;
+  private readonly grabLines: THREE.LineSegments[] = [];
   /** Smoothed explode displacement actually applied (eases toward state.explode). */
   private explodeAmount = 0;
   /** Bumped on every setModels() so stale async glTF loads are discarded. */
@@ -180,6 +186,10 @@ export class ModelScene {
 
     this.buildInto(this.modelGroup, model, token);
     this.modelGroup.position.x = compareTo ? -1.6 : 0;
+
+    // The old part meshes (and any grab outline on them) were just disposed.
+    this.grabbedId = null;
+    this.grabLines.length = 0;
 
     if (compareTo) {
       this.buildInto(this.compareGroup, compareTo, token);
@@ -298,6 +308,41 @@ export class ModelScene {
   /** Transient hover highlight (presenter `point`); not part of shared state. */
   setHover(partId: string | null): void {
     this.hoverId = partId;
+  }
+
+  /**
+   * Draw a glowing edge outline around the part being pinch-grabbed (or clear
+   * it with null). The outline is a child of each part mesh, so it follows the
+   * part's translation / rotation / scale. Transient — not part of shared state.
+   */
+  setGrabbed(partId: string | null): void {
+    if (partId === this.grabbedId) return;
+    this.grabbedId = partId;
+    for (const line of this.grabLines) {
+      line.parent?.remove(line);
+      line.geometry.dispose();
+      (line.material as THREE.Material).dispose();
+    }
+    this.grabLines.length = 0;
+    if (!partId) return;
+    const pv = this.parts.find((p) => p.partId === partId);
+    if (!pv) return;
+    pv.root.traverse((node) => {
+      const mesh = node as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.geometry) return;
+      const edges = new THREE.EdgesGeometry(mesh.geometry, 25);
+      const mat = new THREE.LineBasicMaterial({
+        color: GRAB_OUTLINE_COLOR,
+        transparent: true,
+        opacity: 0.9,
+        depthTest: false,
+      });
+      const line = new THREE.LineSegments(edges, mat);
+      line.renderOrder = 999; // draw on top so the highlight is always visible
+      line.raycast = () => {}; // never intercept picks
+      mesh.add(line);
+      this.grabLines.push(line);
+    });
   }
 
   private buildInto(group: THREE.Group, id: string, token: number): void {

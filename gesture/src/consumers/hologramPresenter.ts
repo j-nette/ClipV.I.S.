@@ -207,6 +207,7 @@ export class HologramPresenter implements Consumer {
           this.lastPartId = this.dragPartId;
           this.lastPartEndMs = performance.now();
         }
+        this.modelScene.setGrabbed(null); // clear the grab outline
         this.dragMode = 'none';
         this.dragPartId = null;
         break;
@@ -289,6 +290,7 @@ export class HologramPresenter implements Consumer {
     this.dragStartOffset.set(cur?.x ?? 0, cur?.y ?? 0, cur?.z ?? 0);
     this.dragPartId = partId;
     this.dragMode = 'part';
+    this.modelScene.setGrabbed(partId); // glowing edge outline while held
   }
 
   /** Translate the active drag target to follow the pinch on the drag plane. */
