@@ -8,20 +8,20 @@ import * as THREE from 'three';
  * composites them into four rotated quadrants — so each face of the pyramid
  * shows the correct angle as you walk around it.
  *
- * Only the hologram window pays the 4× render cost. Tuning knobs (quad size,
- * gap, ring height) are live-adjustable and persisted, mapping onto the
- * physical pyramid. Ring radius comes from the shared state's `zoom`.
+ * Only the hologram window pays the 4× render cost. The four views are
+ * composited into a 3×3 cross on a centred SQUARE display — each view is exactly
+ * one third of the side (top / bottom / left / right cells). Ring radius comes
+ * from the shared state's `zoom`; `;`/`'` tilt the ring cameras.
  */
 const RT_SIZE = 1024;
 const TUNE_KEY = 'clipvis-holo-tune';
 
 interface Tuning {
-  size: number;
-  gap: number;
+  /** Ring-camera elevation (look-down tilt onto the model). */
   height: number;
 }
 
-const DEFAULT_TUNING: Tuning = { size: 0.3, gap: 40, height: 1.0 };
+const DEFAULT_TUNING: Tuning = { height: 1.0 };
 
 // Ring camera angles → quadrant placement (top / right / bottom / left),
 // each rotated so its base points outward toward the pyramid face.
@@ -32,6 +32,31 @@ const LAYOUT = [
   { x: 0, y: -1, rot: Math.PI },
   { x: -1, y: 0, rot: Math.PI / 2 },
 ];
+
+/** Rotate the whole composite (the cross) by this angle; shrinks to fit if needed. */
+const DISPLAY_ROTATION_DEG = 45;
+const DISPLAY_ROTATION_RAD = (DISPLAY_ROTATION_DEG * Math.PI) / 180;
+
+/** Largest |x| or |y| any quad corner reaches once the cross is rotated by `theta`. */
+function compositeExtent(cell: number, theta: number): number {
+  const rot = (x: number, y: number, c: number, s: number) => ({ x: x * c - y * s, y: x * s + y * c });
+  const tc = Math.cos(theta);
+  const ts = Math.sin(theta);
+  const h = cell / 2;
+  let max = 0;
+  for (const L of LAYOUT) {
+    const center = rot(L.x * cell, L.y * cell, tc, ts);
+    const bc = Math.cos(L.rot + theta);
+    const bs = Math.sin(L.rot + theta);
+    for (const sx of [-h, h]) {
+      for (const sy of [-h, h]) {
+        const corner = rot(sx, sy, bc, bs);
+        max = Math.max(max, Math.abs(center.x + corner.x), Math.abs(center.y + corner.y));
+      }
+    }
+  }
+  return max;
+}
 
 export class Pinwheel {
   private readonly renderer: THREE.WebGLRenderer;
@@ -92,20 +117,29 @@ export class Pinwheel {
     }
     this.renderer.setRenderTarget(null);
 
-    const W = window.innerWidth;
-    const H = window.innerHeight;
-    this.overlayCam.left = -W / 2;
-    this.overlayCam.right = W / 2;
-    this.overlayCam.top = H / 2;
-    this.overlayCam.bottom = -H / 2;
+    // Square display split into a 3×3 grid; the four views fill the cross
+    // (top / bottom / left / right cells), each exactly one third of the side.
+    const side = Math.min(window.innerWidth, window.innerHeight);
+    this.overlayCam.left = -side / 2;
+    this.overlayCam.right = side / 2;
+    this.overlayCam.top = side / 2;
+    this.overlayCam.bottom = -side / 2;
     this.overlayCam.updateProjectionMatrix();
 
-    const s = Math.min(W, H) * this.tuning.size;
-    const d = this.tuning.gap + s / 2;
+    const s = side / 3; // one grid cell
+    // Rotate the whole composite by DISPLAY_ROTATION, shrinking it to fit if the
+    // rotated cross would spill past the square edges.
+    const theta = DISPLAY_ROTATION_RAD;
+    const fit = Math.min(1, side / 2 / compositeExtent(s, theta));
+    const cell = s * fit;
+    const cos = Math.cos(theta);
+    const sin = Math.sin(theta);
     this.quads.forEach((q, i) => {
-      q.scale.set(s, s, 1);
-      q.position.set(LAYOUT[i].x * d, LAYOUT[i].y * d, 0);
-      q.rotation.z = LAYOUT[i].rot;
+      const px = LAYOUT[i].x * cell;
+      const py = LAYOUT[i].y * cell;
+      q.scale.set(cell, cell, 1);
+      q.position.set(px * cos - py * sin, px * sin + py * cos, 0);
+      q.rotation.z = LAYOUT[i].rot + theta;
     });
     this.renderer.render(this.overlayScene, this.overlayCam);
   }
@@ -119,16 +153,14 @@ export class Pinwheel {
   }
 
   private readonly onResize = (): void => {
-    this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+    // Render into a centred SQUARE (the largest that fits), letter-boxed black.
+    const side = Math.min(window.innerWidth, window.innerHeight);
+    this.renderer.setSize(side, side, true);
   };
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     const step = e.shiftKey ? 4 : 1;
     switch (e.key) {
-      case '[': this.tuning.size = Math.max(0.1, this.tuning.size - 0.01 * step); break;
-      case ']': this.tuning.size = Math.min(0.49, this.tuning.size + 0.01 * step); break;
-      case '-': this.tuning.gap = Math.max(-200, this.tuning.gap - 4 * step); break;
-      case '=': this.tuning.gap = Math.min(400, this.tuning.gap + 4 * step); break;
       case ';': this.tuning.height = Math.max(-1, this.tuning.height - 0.05 * step); break;
       case "'": this.tuning.height = Math.min(3, this.tuning.height + 0.05 * step); break;
       case '0': this.tuning = { ...DEFAULT_TUNING }; break;
@@ -167,8 +199,7 @@ export class Pinwheel {
   private updateHudOn(hud: HTMLElement): void {
     hud.textContent =
       `PYRAMID (follower)\n` +
-      `size  [ ]   ${this.tuning.size.toFixed(2)}\n` +
-      `gap   - =   ${this.tuning.gap.toFixed(0)}px\n` +
+      `layout  3×3 cross (1/3 each)\n` +
       `tilt  ; '   ${this.tuning.height.toFixed(2)}\n` +
       `reset 0`;
   }

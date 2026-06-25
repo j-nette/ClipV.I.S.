@@ -12,6 +12,7 @@ import { ModelScene } from '../shared/modelScene';
 import { createPresenterSync, type PresenterSync } from '../shared/holoSync';
 import { quatFromAxisAngle, quatMultiply, quatNormalize, IDENTITY_QUAT } from '../quat';
 import { ViewGizmo } from '../viewGizmo';
+import { ClippyOverlay } from '../clippyOverlay';
 
 /**
  * Presenter consumer for the laptop screen — the OWNER of `ModelState`.
@@ -58,6 +59,8 @@ export class HologramPresenter implements Consumer {
   private readonly clock = new THREE.Clock();
   /** CAD-style view cube + axis triad shown only on this (main) display. */
   private readonly gizmo = new ViewGizmo(CAMERA_DIR.clone());
+  /** Clippy mascot as a fixed corner widget — main display only. */
+  private readonly clippyOverlay = new ClippyOverlay();
   private raf = 0;
 
   // Snap-to-view animation (slerp current → target over SNAP_DURATION).
@@ -237,6 +240,7 @@ export class HologramPresenter implements Consumer {
     window.removeEventListener('resize', this.onResize);
     this.sync.dispose();
     this.gizmo.dispose();
+    this.clippyOverlay.dispose();
     this.renderer.dispose();
     this.container.removeChild(this.renderer.domElement);
   }
@@ -404,6 +408,9 @@ export class HologramPresenter implements Consumer {
     // Orientation widget — main display only (kept out of the hologram follower).
     this.gizmo.update(this.state.orientation);
     this.gizmo.render(this.renderer);
+    // Clippy mascot — fixed corner widget, main display only.
+    this.clippyOverlay.update(this.state.clippy);
+    this.clippyOverlay.render(this.renderer);
   };
 
   private readonly onResize = (): void => {
