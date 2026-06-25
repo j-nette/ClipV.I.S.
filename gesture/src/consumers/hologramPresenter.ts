@@ -11,6 +11,7 @@ import {
 import { ModelScene } from '../shared/modelScene';
 import { createPresenterSync, type PresenterSync } from '../shared/holoSync';
 import { quatFromAxisAngle, quatMultiply, quatNormalize, IDENTITY_QUAT } from '../quat';
+import { ViewGizmo } from '../viewGizmo';
 
 /**
  * Presenter consumer for the laptop screen — the OWNER of `ModelState`.
@@ -55,6 +56,8 @@ export class HologramPresenter implements Consumer {
   private readonly target = new THREE.Vector3(0, 0, 0);
   private readonly sync: PresenterSync;
   private readonly clock = new THREE.Clock();
+  /** CAD-style view cube + axis triad shown only on this (main) display. */
+  private readonly gizmo = new ViewGizmo(CAMERA_DIR.clone());
   private raf = 0;
 
   // Snap-to-view animation (slerp current → target over SNAP_DURATION).
@@ -233,6 +236,7 @@ export class HologramPresenter implements Consumer {
     cancelAnimationFrame(this.raf);
     window.removeEventListener('resize', this.onResize);
     this.sync.dispose();
+    this.gizmo.dispose();
     this.renderer.dispose();
     this.container.removeChild(this.renderer.domElement);
   }
@@ -397,6 +401,9 @@ export class HologramPresenter implements Consumer {
     this.camera.position.copy(this.target).addScaledVector(CAMERA_DIR, this.state.zoom);
     this.camera.lookAt(this.target);
     this.renderer.render(this.modelScene.scene, this.camera);
+    // Orientation widget — main display only (kept out of the hologram follower).
+    this.gizmo.update(this.state.orientation);
+    this.gizmo.render(this.renderer);
   };
 
   private readonly onResize = (): void => {
