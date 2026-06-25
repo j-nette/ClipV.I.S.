@@ -142,6 +142,45 @@ const MODEL_FIX: Record<string, [number, number, number]> = {
   surface_laptop: [0, Math.PI, 0],
 };
 
+/** Models whose flattest panel is a display we light up with screen content. */
+const SCREEN_MODELS = new Set<string>(['surface_laptop']);
+
+/** A glowing "powered-on" laptop screen: Windows-bloom gradient + Microsoft logo. */
+function makeScreenTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 1024;
+  c.height = 640;
+  const g = c.getContext('2d')!;
+  const grad = g.createLinearGradient(0, 0, 0, c.height);
+  grad.addColorStop(0, '#0b2a63');
+  grad.addColorStop(1, '#1b7fd6');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, c.width, c.height);
+  const cx = c.width / 2;
+  const cy = c.height / 2 - 30;
+  const s = 78;
+  const gap = 14;
+  const squares: Array<[string, number, number]> = [
+    ['#f25022', -1, -1],
+    ['#7fba00', 1, -1],
+    ['#00a4ef', -1, 1],
+    ['#ffb900', 1, 1],
+  ];
+  for (const [col, dx, dy] of squares) {
+    g.fillStyle = col;
+    g.fillRect(cx + (dx < 0 ? -s - gap / 2 : gap / 2), cy + (dy < 0 ? -s - gap / 2 : gap / 2), s, s);
+  }
+  g.fillStyle = '#ffffff';
+  g.font = 'bold 70px "Segoe UI", Arial, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText('Microsoft', cx, cy + 160);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 16;
+  return tex;
+}
+
 export class ModelScene {
   readonly scene = new THREE.Scene();
   /** Orientation is applied here; both groups rotate together. */
@@ -391,7 +430,7 @@ export class ModelScene {
           const idx = this.parts.indexOf(pv);
           if (idx >= 0) this.parts.splice(idx, 1);
         }
-        const glbParts = this.addGlbPart(group, gltf.scene, MODEL_FIX[id]);
+        const glbParts = this.addGlbPart(group, gltf.scene, id);
         this.registerExplode(group, glbParts);
       },
       undefined,
@@ -430,7 +469,8 @@ export class ModelScene {
    * part (cloned materials) so render modes, isolation, AND per-part explode all
    * work. A single-mesh export is one part and simply won't separate.
    */
-  private addGlbPart(group: THREE.Group, obj: THREE.Object3D, fix?: [number, number, number]): PartView[] {
+  private addGlbPart(group: THREE.Group, obj: THREE.Object3D, id?: string): PartView[] {
+    const fix = id ? MODEL_FIX[id] : undefined;
     if (fix) obj.rotation.set(fix[0], fix[1], fix[2]);
     obj.updateMatrixWorld(true);
     const size = new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
@@ -472,7 +512,43 @@ export class ModelScene {
       this.parts.push(pv);
       created.push(pv);
     });
+    if (id && SCREEN_MODELS.has(id)) this.applyScreen(created);
     return created;
+  }
+
+  /**
+   * Light up the flattest panel of a model (its display) with screen content,
+   * so a powered-off black laptop screen shows something in the hologram.
+   */
+  private applyScreen(parts: PartView[]): void {
+    let screen: PartView | null = null;
+    let best = 0.15; // require a genuinely plate-like panel
+    const sz = new THREE.Vector3();
+    for (const p of parts) {
+      const geom = (p.root as THREE.Mesh).geometry as THREE.BufferGeometry | undefined;
+      if (!geom) continue;
+      if (!geom.boundingBox) geom.computeBoundingBox();
+      geom.boundingBox!.getSize(sz);
+      const d = [sz.x, sz.y, sz.z].sort((a, b) => a - b);
+      const flat = d[0] / (d[2] || 1);
+      if (flat < best) {
+        best = flat;
+        screen = p;
+      }
+    }
+    if (!screen) return;
+    const tex = makeScreenTexture();
+    screen.mats.forEach((mat, i) => {
+      const sm = mat as THREE.MeshStandardMaterial;
+      sm.map = tex;
+      sm.emissiveMap = tex;
+      if (sm.emissive) sm.emissive.setRGB(1, 1, 1);
+      else sm.emissive = new THREE.Color(0xffffff);
+      sm.emissiveIntensity = 0.95;
+      sm.color?.setRGB(1, 1, 1);
+      sm.needsUpdate = true;
+      screen!.baseColors[i] = new THREE.Color(0xffffff);
+    });
   }
 
   /**
