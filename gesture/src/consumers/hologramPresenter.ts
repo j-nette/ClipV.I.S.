@@ -359,8 +359,9 @@ export class HologramPresenter implements Consumer {
     // and broadcast so the follower purely applies the received orientation.
     if (this.state.spin.on) {
       // Momentum: a swipe-boosted spin eases back toward the base speed so a
-      // fast fling gradually settles into a steady turntable.
-      const base = DEFAULT_STATE.spin.speed;
+      // fast fling gradually settles into a steady turntable — keeping the
+      // direction you swiped (base takes the sign of the current spin).
+      const base = DEFAULT_STATE.spin.speed * Math.sign(this.state.spin.speed || 1);
       this.state.spin.speed += (base - this.state.spin.speed) * (1 - Math.exp(-dt / SPIN_DECAY_TAU));
       const dq = quatFromAxisAngle(UP, this.state.spin.speed * dt);
       this.state.orientation = quatMultiply(dq, this.state.orientation);
