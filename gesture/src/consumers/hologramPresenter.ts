@@ -116,6 +116,7 @@ export class HologramPresenter implements Consumer {
         // Object rotation needs a target: pick the part under the left hand.
         this.rotatePartId =
           e.scope === 'assembly' ? null : this.modelScene.pickPartId(e.ndc, this.camera);
+        this.refreshGrabOutline(); // outline the part while it's being rotated
         break;
       case 'rotate':
         this.snapping = false; // manual rotate takes over from an in-flight snap
@@ -141,6 +142,7 @@ export class HologramPresenter implements Consumer {
         break;
       case 'rotate_end':
         this.rotatePartId = null;
+        this.refreshGrabOutline();
         break;
       case 'scale_start': {
         // Object scale targets the part the first-pinching hand is on; if that
@@ -150,6 +152,7 @@ export class HologramPresenter implements Consumer {
             ? null
             : (this.modelScene.pickPartId(e.ndc, this.camera) ??
               this.modelScene.pickPartId(e.ndcMid, this.camera));
+        this.refreshGrabOutline(); // outline the part while it's being scaled
         break;
       }
       case 'zoom':
@@ -170,6 +173,7 @@ export class HologramPresenter implements Consumer {
         break;
       case 'scale_end':
         this.scalePartId = null;
+        this.refreshGrabOutline();
         break;
       case 'point':
         this.modelScene.setHover(this.modelScene.pickPartId(e.ndc, this.camera));
@@ -216,9 +220,9 @@ export class HologramPresenter implements Consumer {
           this.lastPartId = this.dragPartId;
           this.lastPartEndMs = performance.now();
         }
-        this.modelScene.setGrabbed(null); // clear the grab outline
         this.dragMode = 'none';
         this.dragPartId = null;
+        this.refreshGrabOutline(); // clear unless a rotate/scale still holds it
         break;
       default:
         break;
@@ -242,6 +246,16 @@ export class HologramPresenter implements Consumer {
 
   private publish(): void {
     this.sync.publish(this.state);
+  }
+
+  /** Show the grab outline on whichever part is being translated, rotated, or
+   *  scaled right now (drag wins, then rotate, then scale); clear when none. */
+  private refreshGrabOutline(): void {
+    const id =
+      (this.dragMode === 'part' ? this.dragPartId : null) ??
+      this.rotatePartId ??
+      this.scalePartId;
+    this.modelScene.setGrabbed(id);
   }
 
   /** Start a pinch-drag. Assembly scope moves everything; object scope grabs
@@ -299,7 +313,7 @@ export class HologramPresenter implements Consumer {
     this.dragStartOffset.set(cur?.x ?? 0, cur?.y ?? 0, cur?.z ?? 0);
     this.dragPartId = partId;
     this.dragMode = 'part';
-    this.modelScene.setGrabbed(partId); // glowing edge outline while held
+    this.refreshGrabOutline(); // glowing edge outline while held
   }
 
   /** Translate the active drag target to follow the pinch on the drag plane. */
