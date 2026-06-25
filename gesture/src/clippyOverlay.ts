@@ -70,6 +70,30 @@ export class ClippyOverlay {
     renderer.autoClear = prevAutoClear;
   }
 
+  /**
+   * Stamp Clippy into the bottom-right corner of a render target (one per
+   * hologram view), on top of whatever is already drawn there. Uses the render
+   * target's own viewport/scissor so it sits in RT pixels (no canvas pixel-ratio
+   * juggling); the caller leaves the model already rendered into `rt`.
+   */
+  stampInto(renderer: THREE.WebGLRenderer, rt: THREE.WebGLRenderTarget, sizePx: number): void {
+    const w = rt.width;
+    const h = rt.height;
+    const m = Math.round(w * 0.03);
+    rt.viewport.set(w - sizePx - m, m, sizePx, sizePx);
+    rt.scissor.set(w - sizePx - m, m, sizePx, sizePx);
+    rt.scissorTest = true;
+    const prevAutoClear = renderer.autoClear;
+    renderer.autoClear = false;
+    renderer.setRenderTarget(rt); // re-apply the corner viewport/scissor
+    renderer.clearDepth();
+    renderer.render(this.scene, this.camera);
+    renderer.autoClear = prevAutoClear;
+    rt.viewport.set(0, 0, w, h);
+    rt.scissor.set(0, 0, w, h);
+    rt.scissorTest = false;
+  }
+
   dispose(): void {
     this.scene.traverse((o) => {
       const mesh = o as THREE.Mesh;

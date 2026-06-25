@@ -14,6 +14,7 @@ import { ModelScene } from '../shared/modelScene';
 import { createFollowerSync } from '../shared/holoSync';
 import { DEFAULT_STATE, type ModelState } from '../shared/modelState';
 import { Pinwheel } from './pinwheel';
+import { ClippyOverlay } from '../clippyOverlay';
 
 const canvas = document.getElementById('stage');
 if (!(canvas instanceof HTMLCanvasElement)) {
@@ -34,6 +35,9 @@ function ensureModels(s: ModelState): void {
 
 ensureModels(state);
 const pinwheel = new Pinwheel(canvas, modelScene.scene);
+// Clippy as a fixed corner fixture in each of the four views (own perspective
+// camera, like the presenter) — not a world-space model in the scene.
+const clippy = new ClippyOverlay();
 
 createFollowerSync((next) => {
   state = next;
@@ -43,7 +47,8 @@ function tick(): void {
   requestAnimationFrame(tick);
   ensureModels(state);
   modelScene.applyState(state);
-  pinwheel.render(state.zoom);
+  clippy.update(state.clippy);
+  pinwheel.render(state.zoom, clippy);
 }
 tick();
 

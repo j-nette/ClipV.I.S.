@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { ClippyOverlay } from '../clippyOverlay';
 
 /**
  * True four-camera volumetric pinwheel for the Pepper's Ghost pyramid.
@@ -15,6 +16,8 @@ import * as THREE from 'three';
  */
 const RT_SIZE = 1024;
 const TUNE_KEY = 'clipvis-holo-tune';
+/** Clippy's corner size inside each view's render target. */
+const CLIPPY_RT_PX = Math.round(RT_SIZE * 0.34);
 
 interface Tuning {
   /** Ring-camera elevation (look-down tilt onto the model). */
@@ -96,7 +99,7 @@ export class Pinwheel {
   }
 
   /** Render one frame: four ring cameras → four RTs → four quadrants. */
-  render(ringRadius: number): void {
+  render(ringRadius: number, clippy?: ClippyOverlay): void {
     const r = ringRadius;
     const h = this.tuning.height;
 
@@ -114,6 +117,8 @@ export class Pinwheel {
       cam.updateProjectionMatrix();
       this.renderer.setRenderTarget(this.rts[i]);
       this.renderer.render(this.scene, cam);
+      // Clippy fixture in the bottom-right of every view (like the presenter).
+      clippy?.stampInto(this.renderer, this.rts[i], CLIPPY_RT_PX);
     }
     this.renderer.setRenderTarget(null);
 
