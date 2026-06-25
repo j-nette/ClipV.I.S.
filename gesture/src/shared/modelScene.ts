@@ -130,6 +130,18 @@ function defaultPart(): PartSpec[] {
   return [{ id: 'whole', geo: () => new THREE.BoxGeometry(1.6, 1.6, 1.6), color: 0x4fd1ff, pos: [0, 0, 0] }];
 }
 
+/**
+ * Per-model orientation correction (Euler radians, XYZ) applied to a loaded
+ * glTF before normalization/centering. Some assets are authored facing away or
+ * on their side; fix them here without touching the interactive ModelState
+ * orientation. Tune per model as real heroes land.
+ */
+const MODEL_FIX: Record<string, [number, number, number]> = {
+  // Surface Laptop asset is modelled facing away (screen ends up behind the
+  // base); turn it 180° so the screen faces the viewer.
+  surface_laptop: [0, Math.PI, 0],
+};
+
 export class ModelScene {
   readonly scene = new THREE.Scene();
   /** Orientation is applied here; both groups rotate together. */
@@ -379,7 +391,7 @@ export class ModelScene {
           const idx = this.parts.indexOf(pv);
           if (idx >= 0) this.parts.splice(idx, 1);
         }
-        const glbParts = this.addGlbPart(group, gltf.scene);
+        const glbParts = this.addGlbPart(group, gltf.scene, MODEL_FIX[id]);
         this.registerExplode(group, glbParts);
       },
       undefined,
@@ -418,7 +430,9 @@ export class ModelScene {
    * part (cloned materials) so render modes, isolation, AND per-part explode all
    * work. A single-mesh export is one part and simply won't separate.
    */
-  private addGlbPart(group: THREE.Group, obj: THREE.Object3D): PartView[] {
+  private addGlbPart(group: THREE.Group, obj: THREE.Object3D, fix?: [number, number, number]): PartView[] {
+    if (fix) obj.rotation.set(fix[0], fix[1], fix[2]);
+    obj.updateMatrixWorld(true);
     const size = new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z) || 1;
     obj.scale.setScalar(2.2 / maxDim);
