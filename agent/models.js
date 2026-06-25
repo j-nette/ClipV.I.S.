@@ -38,6 +38,15 @@ export const MODELS = {
     price: "n/a",
     owner: "RE&F",
     blurb: "Microsoft Redmond Building 7."
+  },
+  clippy: {
+    name: "clippy",
+    display: "Clippy",
+    file: "clippy.glb",
+    weight: "n/a",
+    price: "n/a",
+    owner: "ClipV.I.S.",
+    blurb: "Clippy, your holographic assistant."
   }
 };
 
@@ -56,7 +65,10 @@ export const ALIASES = {
   "building 7": "building_7",
   "building seven": "building_7",
   "b7": "building_7",
-  "building": "building_7"
+  "building": "building_7",
+  "clippy": "clippy",
+  "paperclip": "clippy",
+  "clip": "clippy"
 };
 
 export function resolveModel(text) {

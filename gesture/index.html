@@ -13,7 +13,7 @@
       #overlay {
         position: fixed; inset: 0; z-index: 5; pointer-events: none;
         width: 100%; height: 100%;
-        display: none;
+        display: block;
       }
       .info-layer {
         position: absolute; inset: 0; z-index: 8; pointer-events: none;
@@ -138,8 +138,8 @@
         display: none;
       }
       #hud b { color: #22d3ee; }
-      /* Dev mode (?debug) reveals the skeleton overlay and key help. */
-      body.debug #overlay,
+      /* Dev mode (?debug) reveals the live metrics + key help. */
+      body.debug #metrics,
       body.debug #hud { display: block; }
       #status {
         position: fixed; right: 16px; top: 16px; z-index: 10;
@@ -158,6 +158,42 @@
       #gesture-state.point { color: #38bdf8; border-color: #38bdf8; }
       #gesture-state.pinch { color: #22c55e; border-color: #22c55e;
         background: rgba(22, 197, 94, 0.15); }
+      /* Always-on "hands" panel: shows each detected hand + its current pose. */
+      #pose {
+        position: fixed; left: 16px; bottom: 16px; z-index: 11;
+        min-width: 168px;
+        padding: 10px 12px; border-radius: 12px;
+        background: rgba(17, 24, 39, 0.72); backdrop-filter: blur(8px);
+        border: 1px solid rgba(55, 65, 81, 0.9);
+        font-size: 13px; line-height: 1.4; color: #cbd5e1; pointer-events: none;
+      }
+      #pose .pose-title {
+        font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+        color: #64748b; margin-bottom: 6px;
+      }
+      #pose .pose-row {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        padding: 2px 0;
+      }
+      #pose .pose-hand { color: #94a3b8; font-weight: 600; }
+      #pose .pose-name {
+        font-weight: 700; padding: 1px 8px; border-radius: 999px;
+        background: rgba(148, 163, 184, 0.15); color: #e2e8f0;
+      }
+      #pose .pose-name.p-pinch { color: #22c55e; background: rgba(34, 197, 94, 0.18); }
+      #pose .pose-name.p-point { color: #38bdf8; background: rgba(56, 189, 248, 0.18); }
+      #pose .pose-name.p-fist { color: #f59e0b; background: rgba(245, 158, 11, 0.18); }
+      #pose .pose-name.p-open { color: #67e8f9; background: rgba(103, 232, 249, 0.18); }
+      #pose .pose-name.p-create { color: #c4b5fd; background: rgba(196, 181, 253, 0.18); }
+      #pose .muted { color: #64748b; }
+      #metrics {
+        position: fixed; left: 16px; top: 16px; z-index: 10;
+        padding: 8px 12px; border-radius: 8px;
+        background: rgba(17, 24, 39, 0.8); backdrop-filter: blur(6px);
+        font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.6;
+        color: #cbd5e1; white-space: pre; display: none;
+      }
+      #metrics b { color: #22d3ee; }
       #toast {
         position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
         z-index: 20; max-width: 80vw;
@@ -173,17 +209,27 @@
         background: #1f2937; border: 1px solid #374151; border-radius: 4px;
         padding: 1px 6px; font-family: ui-monospace, monospace; font-size: 12px;
       }
+      #open-hologram {
+        position: fixed; right: 16px; bottom: 16px; z-index: 12; display: none;
+        padding: 10px 16px; border: 0; border-radius: 999px; cursor: pointer;
+        font: inherit; font-weight: 700; color: #020617;
+        background: linear-gradient(135deg, #22d3ee, #2563eb);
+        box-shadow: 0 10px 30px rgba(34, 211, 238, 0.3);
+      }
     </style>
   </head>
   <body>
     <div id="scene"></div>
     <canvas id="overlay"></canvas>
+    <button id="open-hologram">🔺 Open hologram window</button>
     <div id="status">starting…</div>
     <div id="gesture-state">IDLE</div>
+    <div id="pose"><div class="pose-title">Hands</div><span class="muted">No hands detected</span></div>
+    <div id="metrics"></div>
     <div id="hud">
-      <div><b>Gesture — manipulation</b> (1 pinch = move + twist · 2 pinch = scale)</div>
-      <div><b>3-finger pinch</b> creates an orb with saved title + description</div>
-      <div><kbd>P</kbd> point · <kbd>G</kbd> grab · <kbd>← ↑ ↓ →</kbd> move</div>
+      <div><b>Gesture — manipulation</b> (2-finger = object · 3-finger = whole assembly)</div>
+      <div><b>Rock sign</b> (index + pinky) creates an orb with saved title + description</div>
+      <div><kbd>P</kbd> point · <kbd>G</kbd> grab · <kbd>B</kbd> object/assembly · <kbd>← ↑ ↓ →</kbd> move</div>
       <div><kbd>Q</kbd>/<kbd>E</kbd> yaw · <kbd>R</kbd>/<kbd>F</kbd> pitch · <kbd>C</kbd>/<kbd>V</kbd> roll · <kbd>Z</kbd>/<kbd>X</kbd> or wheel = zoom</div>
     </div>
     <div id="toast"></div>

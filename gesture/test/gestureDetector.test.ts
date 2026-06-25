@@ -38,6 +38,7 @@ describe('gestureDetector', () => {
       cursor: null,
       pinchRatio: 1,
       createPoseRatio: 1,
+      indexPalmClearance: 0,
     });
   });
 

@@ -1,27 +1,33 @@
-import type { HandLandmarks } from './types';
+import type { HandLandmarks, Landmark } from './types';
 import type { HandTrackerFrame } from './handTracker';
-import type { GestureState } from './gestureDetector';
 import { LM } from './gestureDetector';
 
-/** MediaPipe hand skeleton edges (pairs of landmark indices). */
-const HAND_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
-  [0, 1], [1, 2], [2, 3], [3, 4], // thumb
-  [0, 5], [5, 6], [6, 7], [7, 8], // index
-  [5, 9], [9, 10], [10, 11], [11, 12], // middle
-  [9, 13], [13, 14], [14, 15], [15, 16], // ring
-  [13, 17], [17, 18], [18, 19], [19, 20], // pinky
-  [0, 17], // palm base
-];
+/** Per-hand gesture tint, parallel to a frame's hands. */
+export interface HandTint {
+  pinch: boolean;
+  point: boolean;
+}
 
-const COLOR_IDLE = 'rgba(34, 211, 238, 0.85)'; // cyan
-const COLOR_POINT = 'rgba(56, 189, 248, 0.95)'; // bright blue
-const COLOR_PINCH = 'rgba(34, 197, 94, 0.95)'; // green
+/** Fingertips we render as glowing dots: thumb, index, middle. */
+const FINGERTIPS = [LM.THUMB_TIP, LM.INDEX_TIP, LM.MIDDLE_TIP];
+
+const COLOR_IDLE = '34, 211, 238'; // cyan
+const COLOR_POINT = '56, 189, 248'; // bright blue
+const COLOR_PINCH = '34, 197, 94'; // green
+
+/** Dot radius bounds (px, pre-DPR). */
+const MIN_RADIUS = 6;
+const MAX_RADIUS = 34;
+/** Apparent hand size (normalized palm length) → dot radius in px. */
+const SIZE_GAIN = 90;
+/** Per-finger depth (landmark z) influence — pushing a fingertip forward grows it. */
+const DEPTH_GAIN = 4;
 
 /**
- * Transparent canvas overlay that draws the live hand skeleton and reflects the
- * current gesture state: skeleton tints green on pinch / blue on point, and a
- * cursor ring is drawn at the active fingertip. Mirrors X to match the selfie
- * view the user sees of their own hand.
+ * Transparent canvas overlay that marks the user's hands with glowing dots at
+ * the thumb / index / middle fingertips. Each dot scales with how close that
+ * hand (and finger) is to the camera, so reaching toward the screen enlarges it.
+ * Tinted green on pinch / blue on point / cyan idle. Mirrors X for the selfie view.
  */
 export class Overlay {
   private readonly ctx: CanvasRenderingContext2D;
@@ -39,14 +45,14 @@ export class Overlay {
     this.canvas.height = this.canvas.clientHeight * devicePixelRatio;
   };
 
-  /** Draw the frame, optionally tinted/annotated by the detected gesture state. */
-  draw(frame: HandTrackerFrame, state?: GestureState): void {
+  /** Draw the frame: fingertip dots per hand, tinted by its gesture state. */
+  draw(frame: HandTrackerFrame, tints?: HandTint[]): void {
     const { width: w, height: h } = this.canvas;
     this.ctx.clearRect(0, 0, w, h);
-    const color = state?.pinch ? COLOR_PINCH : state?.point ? COLOR_POINT : COLOR_IDLE;
-    for (const hand of frame.hands) this.drawHand(hand, w, h, color);
-    if (frame.hands[0] && state && (state.pinch || state.point)) {
-      this.drawCursor(frame.hands[0], w, h, color, state.pinch);
+    for (let i = 0; i < frame.hands.length; i++) {
+      const t = tints?.[i];
+      const rgb = t?.pinch ? COLOR_PINCH : t?.point ? COLOR_POINT : COLOR_IDLE;
+      this.drawFingertips(frame.hands[i], w, h, rgb);
     }
   }
 
@@ -54,52 +60,48 @@ export class Overlay {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
-  private drawHand(hand: HandLandmarks, w: number, h: number, color: string): void {
-    const px = (i: number) => (1 - hand[i].x) * w; // mirror X for selfie view
-    const py = (i: number) => hand[i].y * h;
+  private drawFingertips(hand: HandLandmarks, w: number, h: number, rgb: string): void {
+    // Apparent hand size (palm length in normalized coords) → bigger when closer.
+    const palm = dist2D(hand[LM.WRIST], hand[LM.MIDDLE_MCP]);
+    const basePx = palm * SIZE_GAIN * devicePixelRatio;
 
-    // Connections.
-    this.ctx.strokeStyle = color;
-    this.ctx.lineWidth = 3 * devicePixelRatio;
-    this.ctx.beginPath();
-    for (const [a, b] of HAND_CONNECTIONS) {
-      this.ctx.moveTo(px(a), py(a));
-      this.ctx.lineTo(px(b), py(b));
-    }
-    this.ctx.stroke();
-
-    // Landmarks.
-    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-    const r = 4 * devicePixelRatio;
-    for (let i = 0; i < hand.length; i++) {
-      this.ctx.beginPath();
-      this.ctx.arc(px(i), py(i), r, 0, Math.PI * 2);
-      this.ctx.fill();
+    for (const i of FINGERTIPS) {
+      const p = hand[i];
+      const x = (1 - p.x) * w; // mirror X for selfie view
+      const y = p.y * h;
+      // Per-finger depth: smaller (more negative) z = closer to camera = larger.
+      const depthScale = 1 - p.z * DEPTH_GAIN;
+      const r = clamp(
+        basePx * depthScale,
+        MIN_RADIUS * devicePixelRatio,
+        MAX_RADIUS * devicePixelRatio,
+      );
+      this.glowDot(x, y, r, rgb);
     }
   }
 
-  /** Highlight the active fingertip: a ring at the index tip (filled on pinch). */
-  private drawCursor(
-    hand: HandLandmarks,
-    w: number,
-    h: number,
-    color: string,
-    filled: boolean,
-  ): void {
-    const tip = hand[LM.INDEX_TIP];
-    const cx = (1 - tip.x) * w;
-    const cy = tip.y * h;
-    const r = 14 * devicePixelRatio;
-    this.ctx.lineWidth = 3 * devicePixelRatio;
-    this.ctx.strokeStyle = color;
-    this.ctx.fillStyle = color;
-    this.ctx.beginPath();
-    this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    if (filled) this.ctx.fill();
-    else this.ctx.stroke();
+  /** A soft dot of light: glowing halo with a bright white core. */
+  private glowDot(x: number, y: number, r: number, rgb: string): void {
+    const ctx = this.ctx;
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+    grad.addColorStop(0.35, `rgba(${rgb}, 0.9)`);
+    grad.addColorStop(1, `rgba(${rgb}, 0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   dispose(): void {
     window.removeEventListener('resize', this.resize);
   }
+}
+
+function dist2D(a: Landmark, b: Landmark): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, v));
 }
