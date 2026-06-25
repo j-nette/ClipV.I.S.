@@ -142,45 +142,6 @@ const MODEL_FIX: Record<string, [number, number, number]> = {
   surface_laptop: [0, Math.PI, 0],
 };
 
-/** Models whose flattest panel is a display we light up with screen content. */
-const SCREEN_MODELS = new Set<string>(['surface_laptop']);
-
-/** A glowing "powered-on" laptop screen: Windows-bloom gradient + Microsoft logo. */
-function makeScreenTexture(): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = 1024;
-  c.height = 640;
-  const g = c.getContext('2d')!;
-  const grad = g.createLinearGradient(0, 0, 0, c.height);
-  grad.addColorStop(0, '#0b2a63');
-  grad.addColorStop(1, '#1b7fd6');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, c.width, c.height);
-  const cx = c.width / 2;
-  const cy = c.height / 2 - 30;
-  const s = 78;
-  const gap = 14;
-  const squares: Array<[string, number, number]> = [
-    ['#f25022', -1, -1],
-    ['#7fba00', 1, -1],
-    ['#00a4ef', -1, 1],
-    ['#ffb900', 1, 1],
-  ];
-  for (const [col, dx, dy] of squares) {
-    g.fillStyle = col;
-    g.fillRect(cx + (dx < 0 ? -s - gap / 2 : gap / 2), cy + (dy < 0 ? -s - gap / 2 : gap / 2), s, s);
-  }
-  g.fillStyle = '#ffffff';
-  g.font = 'bold 70px "Segoe UI", Arial, sans-serif';
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText('Microsoft', cx, cy + 160);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 16;
-  return tex;
-}
-
 export class ModelScene {
   readonly scene = new THREE.Scene();
   /** Orientation is applied here; both groups rotate together. */
@@ -512,37 +473,7 @@ export class ModelScene {
       this.parts.push(pv);
       created.push(pv);
     });
-    if (id && SCREEN_MODELS.has(id)) this.applyScreen(group);
     return created;
-  }
-
-  /**
-   * Light up the flattest panel of a model (its display) with screen content,
-   * so a powered-off black laptop screen shows something in the hologram.
-   */
-  /**
-   * Overlay a glowing screen quad over a laptop's display area. The asset has no
-   * separate screen mesh (the display is baked into a bulky lid), so we float an
-   * emissive plane rather than trying to texture a mesh. Position/size are tuned
-   * from the model bounds; double-sided so it shows regardless of facing.
-   */
-  private applyScreen(group: THREE.Group): void {
-    const box = new THREE.Box3().setFromObject(group);
-    const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
-    const w = Math.max(size.x, size.z) * 0.74;
-    const h = w * 0.62; // ~16:10
-    const mat = new THREE.MeshBasicMaterial({
-      map: makeScreenTexture(),
-      side: THREE.DoubleSide,
-      toneMapped: false,
-    });
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
-    // Upper-back of the laptop, tilted back slightly, facing the viewer.
-    screen.position.set(center.x, center.y + size.y * 0.18, center.z - size.z * 0.2);
-    screen.rotation.x = -0.15;
-    screen.userData.partId = 'screen-overlay';
-    group.add(screen);
   }
 
   /**
