@@ -352,6 +352,16 @@ describe('GestureController (command gestures)', () => {
     if (snap && snap.type === 'snap_view') expect(snap.name).toBe('iso');
   });
 
+  it('does not snap right after releasing a left-hand pinch (rotate)', () => {
+    const { controller, events } = makeController();
+    controller.update([hand({ label: 'Left', pinchRatio: 0.2 })]); // left-hand pinch (rotate)
+    events.length = 0;
+    // Release: fingers extend into a "2" — should be suppressed by the cooldown.
+    const two = hand({ label: 'Left', pinchRatio: 1, fingerCountUp: 2 });
+    for (let i = 0; i < 12; i++) controller.update([two]);
+    expect(events.some((e) => e.type === 'snap_view')).toBe(false);
+  });
+
   it('a thumb-middle contact then release cycles the render mode', () => {
     const { controller, events } = makeController();
     controller.update([hand({ label: 'Right', thumbMiddleRatio: 0.2 })]); // contact

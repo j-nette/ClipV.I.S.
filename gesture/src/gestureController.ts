@@ -40,6 +40,8 @@ const FOCUS_DWELL_FRAMES = 16;
 const FOCUS_MOVE_TOL = 0.1;
 /** Frames a finger count must be stable before it snaps the view. */
 const SNAP_HOLD_FRAMES = 7;
+/** Frames to block a view snap after the left hand was last pinching (rotate). */
+const SNAP_AFTER_PINCH_FRAMES = 22;
 /** Snap-view targets, indexed by finger count − 1 (1=front, 2=iso, 3=right, 4=top). */
 const SNAP_VIEWS: ViewName[] = ['front', 'iso', 'right', 'top'];
 /** Thumb→middle ratio below this = contact; above RELEASE = released (a snap/tap). */
@@ -169,6 +171,8 @@ export class GestureController {
   private snapCount = 0;
   private snapHold = 0;
   private snapFired = 0;
+  /** Counts down after a left-hand pinch to suppress a snap on rotate release. */
+  private snapBlock = 0;
   // render-mode (thumb→middle snap/tap)
   private readonly renderContact = new Map<string, boolean>();
   private renderCooldown = 0;
@@ -322,6 +326,7 @@ export class GestureController {
     this.snapCount = 0;
     this.snapHold = 0;
     this.snapFired = 0;
+    this.snapBlock = 0;
     this.renderContact.clear();
     this.renderCooldown = 0;
     this.turnPrevX.clear();
@@ -587,8 +592,15 @@ export class GestureController {
       return;
     }
     const left = hands.find((h) => !this.isTranslator(h.label)) ?? null;
+    // Releasing a left-hand rotate pinch extends the fingers, which can look like
+    // a finger count. Block the snap while pinching and for a moment afterward.
+    if (left && this.isPinching(left.label)) {
+      this.snapBlock = SNAP_AFTER_PINCH_FRAMES;
+    } else if (this.snapBlock > 0) {
+      this.snapBlock--;
+    }
     const count = left ? left.fingerCountUp : 0;
-    if (!left || this.isPinching(left.label) || count < 1 || count > 4) {
+    if (!left || this.isPinching(left.label) || this.snapBlock > 0 || count < 1 || count > 4) {
       this.snapHold = 0;
       this.snapCount = 0;
       if (!left || count === 0) this.snapFired = 0; // allow re-firing later
