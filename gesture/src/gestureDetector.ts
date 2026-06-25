@@ -194,6 +194,8 @@ export interface HandObservation {
   openPalm: boolean;
   /** Number of extended fingers (index..pinky), 0–4 — for finger-count commands. */
   fingerCount: number;
+  /** Extended fingers that also point UP (hand held upright) — for strict view snaps. */
+  fingerCountUp: number;
   /** Index + middle extended and held together, ring + pinky curled (the swipe pose). */
   indexMiddle: boolean;
   /** Normalized thumb-tip→middle-tip distance — for the render-mode snap/tap. */
@@ -249,6 +251,14 @@ export function observeHand(hand: HandLandmarks, label: string): HandObservation
   const rng = ext(LM.RING_TIP, LM.RING_MCP);
   const pky = ext(LM.PINKY_TIP, LM.PINKY_MCP);
   const fingerCount = (idx ? 1 : 0) + (mid ? 1 : 0) + (rng ? 1 : 0) + (pky ? 1 : 0);
+  // Strict variant: the finger must also point UP (tip above its PIP in image
+  // space). Keeps the view-snap from firing on a half-curled, pinch-ish hand.
+  const up = (tip: number, pip: number): boolean => hand[tip].y < hand[pip].y;
+  const fingerCountUp =
+    (idx && up(LM.INDEX_TIP, LM.INDEX_PIP) ? 1 : 0) +
+    (mid && up(LM.MIDDLE_TIP, LM.MIDDLE_PIP) ? 1 : 0) +
+    (rng && up(LM.RING_TIP, LM.RING_PIP) ? 1 : 0) +
+    (pky && up(LM.PINKY_TIP, LM.PINKY_PIP) ? 1 : 0);
   const fist = isFist(hand, handSize);
   // Open hand = clearly not a fist; 3+ fingers out is robust to a stray pinky.
   const openPalm = fingerCount >= 3;
@@ -268,6 +278,7 @@ export function observeHand(hand: HandLandmarks, label: string): HandObservation
     fist,
     openPalm,
     fingerCount,
+    fingerCountUp,
     indexMiddle,
     thumbMiddleRatio: thumbMiddle,
     depth: handSize,

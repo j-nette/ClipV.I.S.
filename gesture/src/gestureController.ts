@@ -587,13 +587,14 @@ export class GestureController {
       return;
     }
     const left = hands.find((h) => !this.isTranslator(h.label)) ?? null;
-    if (!left || this.isPinching(left.label) || left.fingerCount < 1 || left.fingerCount > 4) {
+    const count = left ? left.fingerCountUp : 0;
+    if (!left || this.isPinching(left.label) || count < 1 || count > 4) {
       this.snapHold = 0;
       this.snapCount = 0;
-      if (!left || left.fingerCount === 0) this.snapFired = 0; // allow re-firing later
+      if (!left || count === 0) this.snapFired = 0; // allow re-firing later
       return;
     }
-    const c = left.fingerCount;
+    const c = count;
     if (c === this.snapCount) {
       this.snapHold++;
     } else {
