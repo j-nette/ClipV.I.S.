@@ -2,7 +2,9 @@
 
 > Onboarding for a new session (human or AI) doing **code** work. Read this with
 > [`../HANDOFF.md`](../HANDOFF.md) (state/run) and [`project-brief.md`](project-brief.md) (the vision).
-> Everything below is on `main`.
+> Everything below is on `main`. **Pending:** `origin/holo-experiment` (Clippy → always-on corner
+> widget + pyramid display tuning for the hardware) is not yet merged — see
+> [`../HANDOFF.md`](../HANDOFF.md) → Next steps for the integration plan and conflict rules.
 
 ---
 
@@ -54,7 +56,7 @@ MediaPipe `hand_landmarker.task` from `gesture/public/models` (see `vite.config.
 | `consumers/hologramPresenter.ts` | **Owns `ModelState`.** `handle(GestureEvent)` + `window.*` hooks → mutate state → publish. The only writer. |
 | `shared/modelState.ts` | The `ModelState` type, `DEFAULT_STATE`, clamps, `VIEW_QUATS`, render-mode cycle. Structured-clone-safe (plain data only). |
 | `shared/holoSync.ts` | `BroadcastChannel` publish/subscribe + `hello` re-sync handshake. Swap for a WebSocket to go cross-machine. |
-| `shared/modelScene.ts` | Builds the THREE scene + multi-part model in a `pivot`; `applyState()` pushes state into the graph (orientation, explode, part offsets/rotations/scales, render mode, focus). Hosts the **persistent Clippy** (outside the pivot). |
+| `shared/modelScene.ts` | Builds the THREE scene + multi-part model in a `pivot`; `applyState()` pushes state into the graph (orientation, explode, part offsets/rotations/scales, render mode, focus). Loads real `.glb` heroes (normalize→2.2, recenter, per-mesh parts). **Textured glTF materials self-illuminate** (`emissiveMap`) + anisotropy 16; `MODEL_FIX[id]` corrects per-model orientation. Hosts the **in-world Clippy** (outside the pivot). |
 | `shared/clippy.ts` | The mascot: placeholder paperclip or `/assets/clippy.glb`; `setEmote()` + `update()` for idle/wave/thinking/presenting/celebrating/confused. |
 | `hologram/main.ts`, `hologram/pinwheel.ts` | The follower window: subscribe to state, render four ring cameras → four render targets → four quadrants. |
 | `voice/voiceClient.ts` | POST `/agent`; map the JSON to `window.*` hooks; speak `/tts` (browser fallback). |
@@ -119,8 +121,12 @@ Live smoke: start both processes, open :5173, try "show me the xbox controller",
 
 ## 7. How to add things (recipes)
 
-- **A new 3D model:** add it to `agent/models.js` (+ `models.csv`), drop `models/<id>.glb`, and add a
-  multi-part placeholder in `modelScene.ts` `PART_SPECS` (so explode/focus work before art lands).
+- **A new 3D model:** add it to `agent/models.js` (+ `models.csv`) **and the id list in
+  `agent/systemPrompt.js`** (the LLM path rejects unknown ids), drop `models/<id>.glb`, and add a
+  multi-part placeholder in `modelScene.ts` `PART_SPECS` (fallback before art lands). Real `.glb`
+  auto-normalizes + self-illuminates. If it renders **grey**, it's spec-gloss — convert with
+  `npx @gltf-transform/cli metalrough in.glb out.glb`. If it faces the wrong way, add a `MODEL_FIX`
+  entry in `modelScene.ts`.
 - **A new voice command:** extend `agent/systemPrompt.js` (LLM path) **and** `agent/mockParser.js`
   (mock/fallback). If it manipulates the model, return `intent:"manipulate"` + an `action`, then map
   that action in `voiceClient.ts` `applyAction()` to a `window.*` hook.

@@ -1,5 +1,4 @@
 name,file,weight,price,owner,blurb
-surface_pro_11,surface_pro_11.glb,1.97 lbs,$999,Surface Team,The Surface Pro 11 with the Snapdragon X Elite chip.
-surface_pro_10,surface_pro_10.glb,1.94 lbs,$1199,Surface Team,The previous-gen Surface Pro 10 for business.
 xbox_controller,xbox_controller.glb,0.6 lbs,$59,Xbox Team,The Xbox Wireless Controller.
-building_7,building_7.glb,n/a,n/a,RE&F,Microsoft Redmond Building 7.
+surface_laptop,surface_laptop.glb,2.84 lbs,$999,Surface Team,The Microsoft Surface Laptop.
+circuit,circuit.glb,n/a,n/a,Devices Team,A circuit board assembly.

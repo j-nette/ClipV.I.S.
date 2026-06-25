@@ -31,10 +31,11 @@ type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 
 const QUICK_COMMANDS: Array<{ label: string; command: string }> = [
   { label: 'Show controller', command: 'Clippy, show me the Xbox controller' },
-  { label: 'Surface Pro 11', command: 'Clippy, show me the Surface Pro 11' },
+  { label: 'Circuit board', command: 'Clippy, show me the circuit board' },
+  { label: 'Surface laptop', command: 'Clippy, show me the surface laptop' },
   { label: 'What does it weigh?', command: 'What does it weigh?' },
-  { label: 'Compare to SP10', command: 'Compare to the Surface Pro 10' },
-  { label: 'Building 7', command: 'Clippy, bring up Building 7' },
+  { label: 'Explode it', command: 'Explode it' },
+  { label: 'X-ray', command: 'X-ray' },
   { label: 'Wow! 🎉', command: 'Wow, that looks amazing!' },
 ];
 

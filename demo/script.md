@@ -55,11 +55,12 @@ Drive it with voice; the hologram follower mirrors every change in real time.
    360° — the thing a slide can't do.)
 2. **"What does it weigh?"** → Clippy **points** and narrates the spec; the number floats next to the
    model. *"Real product data from **Microsoft Fabric**."*
-3. **"Explode it."** → the assembly separates. *"Show a customer how it's built — or how support
-   services it."* (This is the **Support** half of the challenge.)
-4. **"Show me the back"** then **"x-ray."** → canonical view + see-through. Range of inspection.
-5. **Switch products: "Show me the Surface Pro 11."** → instant swap. *"Any product in the catalog,
-   on command."* *(Optional: "Compare to the Surface Pro 10." → side-by-side.)*
+3. **Switch products: "Show me the circuit board."** → instant swap. Then **"explode it"** → the board
+   separates into its components, and **"x-ray"** → see right through it. *"Show a customer — or a
+   support engineer — exactly how it's built and serviced."* (The **Support** half of the challenge —
+   and the money shot.)
+4. **"Show me the surface laptop."** → instant swap again. *"Any product in the catalog, on command."*
+   A quick **"spin it"** to close the loop.
 **Throughout, call out the stack:** real **LLM brain** (Azure AI Foundry / GitHub Models), **voice
 in/out**, **hand-gesture** control, and the **four-camera pyramid** — all running on a laptop.
 
@@ -96,11 +97,11 @@ Hackathon 2026 · Customer Engagement & Support."
 | "explode it" / "explode the controller" | manipulate → `explode` | `B` |
 | "show me the back" | manipulate → `view_back` | `4` |
 | "x-ray" / "wireframe" / "solid mode" | manipulate → render mode | `M` |
-| "show me the surface pro 11" | show_model → `surface_pro_11` | quick-chip |
-| "compare to the surface pro 10" | compare → `surface_pro_10` | — |
+| "show me the circuit board" | show_model → `circuit` | quick-chip |
+| "show me the surface laptop" | show_model → `surface_laptop` | quick-chip |
 | "reset" | manipulate → `reset` | — |
 
-Known model ids: `xbox_controller`, `surface_pro_11`, `surface_pro_10`, `building_7` (`agent/models.js`).
+Hero model ids: `xbox_controller`, `circuit`, `surface_laptop` (`agent/models.js`).
 
 ---
 

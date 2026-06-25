@@ -14,7 +14,7 @@ npm start
 
 Open http://localhost:3000
 
-- Click **Listen** and say *"Clippy, show me the Surface Pro 11"*
+- Click **Listen** and say *"Clippy, show me the Xbox controller"*
 - Or press **1 / 2 / 3** (keyboard fallback for the 3 demo commands)
 - The JSON response renders on the page; Clippy narration plays via browser TTS
 

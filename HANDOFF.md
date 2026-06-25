@@ -1,9 +1,13 @@
 # ClipV.I.S. — Handoff / State of the Build
 
 > Snapshot for anyone (teammate or future session) picking this up.
-> **Status: merged to `main`.** `main` is the single consolidated trunk — gesture app + voice +
-> Clippy + Kevin's hand gestures + the anti-shear fix all live there (PRs #5 and #6). Branch off
-> `main` for new work.
+> **Status: merged to `main`.** `main` is the consolidated trunk — gesture app + voice + Clippy +
+> Kevin's hand gestures + the anti-shear fix, plus the **3 real textured hero models** and the
+> **glTF render fixes** from the latest session. Branch off `main` for new work.
+>
+> **⏳ Pending integration:** `origin/holo-experiment` — Clippy **corner-widget revamp** + **pyramid
+> display tuning** for the hardware. It branched *before* the model work, so expect merge conflicts.
+> See [Next steps](#️-next-steps-priority-order) for the integration plan.
 
 ---
 
@@ -66,8 +70,8 @@ Open **http://localhost:5173/** (the presenter):
 | Voice → presenter | ✅ | command bar in `gesture/src/voice/` drives `window.setModelState` etc. |
 | Voice manipulation | ✅ | `manipulate` intent + `action` field → zoom/spin/explode/view/render/reset |
 | Hand gestures | ✅ | MediaPipe Hands, One-Euro smoothing, two-hand control, poses → same hooks (Kevin) |
-| Clippy mascot | ✅ | persistent companion in TS; idle/wave/thinking/presenting/celebrating/confused |
-| 3D model swap | ✅ | multi-part placeholders; auto-load real `.glb` from `/assets/<id>.glb` |
+| Clippy mascot | ✅ | in-world companion beside the model (`shared/clippy.ts`); idle/wave/thinking/presenting/celebrating/confused. *(`holo-experiment` reworks this into an always-on corner widget — pending.)* |
+| 3D model swap | ✅ | **3 real textured hero models** (`xbox_controller`, `circuit`, `surface_laptop`); multi-part placeholders as fallback; auto-load real `.glb` from `/assets/<id>.glb` |
 | Hologram pyramid | ✅ | four-camera pinwheel follower window (`/hologram.html`) |
 | Fabric data | ⚠️ wired, mock on corp | corp net blocks SQL redirect ports 11000–11999; identical mock mirror |
 | Fallbacks | ✅ | text box + quick-chips + keyboard for every gesture; demo-safe |
@@ -152,14 +156,36 @@ exposes the older `setSceneState`/`setClippyState` pair for the :3000 fallback p
 ---
 
 ## ▶️ Next steps (priority order)
-1. **Demo script** (`demo/script.md`) — lock the exact 90-sec pitch + the exact spoken commands.
-2. **Real hero `.glb` models** → drop in `models/` named `surface_pro_11.glb`, `xbox_controller.glb`,
-   `building_7.glb` (see `agent/models.js` for the names). They auto-load, no code change.
-3. **Physical pyramid** build + tune pinwheel (`[ ] - = , . ; '` in pyramid mode) on the real tablet.
-4. **Merge `dev/voice-agent` → main** (open PR).
-5. **Backup demo video** (record a perfect run Thursday night) + submission package.
-6. Optional: pre-render the locked demo lines in a fancy ElevenLabs *library* voice on the website
-   (free tier blocks library voices via API) and drop the mp3s in `voice/clips/` — see its README.
+
+1. **Integrate `origin/holo-experiment` into `main`** — the immediate task. It adds:
+   - **Clippy revamp** — `gesture/src/clippyOverlay.ts` (new): Clippy as a **fixed bottom-right
+     corner widget** (its own scene + camera, screen-space, never rotates/scales with the model),
+     **presenter-only**; the in-world 3D Clippy is removed from `shared/modelScene.ts`. Wired in
+     `hologramPresenter.ts`. Still reacts to `ModelState.clippy` emotes.
+   - **Pyramid display tuning for the hardware** — `hologram/pinwheel.ts` (biggest change),
+     `hologram.html`, `hologram/main.ts`.
+
+   ⚠️ It branched at `6f260b4`, **before this session's model + render work**, so a straight merge
+   conflicts. Expect conflicts in `shared/modelScene.ts`, `hologram/pinwheel.ts`,
+   `consumers/hologramPresenter.ts`, `voice/voiceUI.ts`, `agent/models.js`, `agent/systemPrompt.js`,
+   `agent/models.csv`, `demo/script.md`, `HANDOFF.md`. **Resolution rules:**
+   - **Keep `main`'s model set** — `xbox_controller`, `circuit`, `surface_laptop` only (NO
+     `surface_pro_*` / `building_7`). Keep `models/*.glb` (the branch lacks them — it branched first).
+   - **Keep `main`'s glTF render fixes** in `modelScene.ts` (self-illum, anisotropy, `MODEL_FIX`
+     orientation) while **adopting** the branch's removal of the in-world Clippy + the new
+     `clippyOverlay`.
+   - **Merge `pinwheel.ts` carefully** — `main` has Kevin's view-gizmo/axis-refs; the branch has the
+     hardware display tuning. Both are wanted.
+   - Suggested flow: `git switch -c integrate/holo origin/holo-experiment && git merge main` (resolve
+     onto the branch, then PR to `main`). Verify with
+     `npm --prefix gesture run typecheck && npm --prefix gesture run test`.
+
+2. **Physical pyramid** — build + tune the pinwheel on the real tablet (the holo-experiment display
+   changes target this hardware).
+3. **Submission** — record the 2–5 min video per `demo/script.md`; make the repo public/gim-home;
+   fill the Innovation Studio project page.
+4. Optional: pre-render the locked demo lines in an ElevenLabs *library* voice → `voice/clips/`
+   (free tier blocks library voices via API; see its README).
 
 ---
 
@@ -174,3 +200,12 @@ exposes the older `setSceneState`/`setClippyState` pair for the :3000 fallback p
 - **Windows on ARM (Snapdragon X Elite)**: no NVIDIA/CUDA, Python not installed → local RVC/PyTorch
   is not viable on this machine.
 - Frontend assets are cache-busted with `?v=N` in `index.html`; bump N when you change JS/CSS.
+- **glTF render pipeline** (`shared/modelScene.ts`): real `.glb` heroes are **normalized** (scaled
+  to ~2.2, recentered), each mesh becomes its own part, **textured materials self-illuminate** via
+  their colour map (`emissiveMap`, so dark/metallic models read against the black background) and get
+  **anisotropy 16**. `MODEL_FIX[id]` applies a per-model orientation fix (the Surface laptop is
+  turned 180°). Flat-colour placeholders/vertex-colour parts keep the emissive glow-wash. **Keep the
+  black background** — it's required for the Pepper's Ghost illusion; brighten models, never the bg.
+- **Spec-gloss `.glb` assets render grey** — three.js r166 dropped
+  `KHR_materials_pbrSpecularGlossiness`, so the loader ignores their textures. Convert to metal-rough
+  first: `npx @gltf-transform/cli metalrough in.glb out.glb` (done for `xbox_controller.glb`).
