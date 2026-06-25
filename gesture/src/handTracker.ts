@@ -4,6 +4,7 @@ import {
   type HandLandmarkerResult,
 } from '@mediapipe/tasks-vision';
 import type { HandLandmarks } from './types';
+import { HandSmoother, type SmoothingOptions } from './smoothing';
 
 /**
  * MediaPipe Hands wrapper. Loads the model + wasm from local public/ assets
@@ -18,6 +19,14 @@ export interface HandTrackerOptions {
   modelPath?: string;
   /** Max hands to track. 1 keeps it fast; 2 enables two-hand zoom/rotate later. */
   numHands?: number;
+  /** Min confidence to first detect a hand (0..1). */
+  minDetectionConfidence?: number;
+  /** Min confidence the hand is still present (0..1). Lower = fewer dropouts. */
+  minPresenceConfidence?: number;
+  /** Min confidence to keep tracking frame-to-frame (0..1). Lower = fewer dropouts. */
+  minTrackingConfidence?: number;
+  /** One-Euro landmark smoothing (kills jitter without much lag). */
+  smoothing?: SmoothingOptions;
 }
 
 export type HandsListener = (result: HandTrackerFrame) => void;
@@ -38,8 +47,11 @@ export class HandTracker {
   private running = false;
   private lastVideoTime = -1;
   private readonly listeners = new Set<HandsListener>();
+  private readonly smoother: HandSmoother;
 
-  constructor(private readonly opts: HandTrackerOptions = {}) {}
+  constructor(private readonly opts: HandTrackerOptions = {}) {
+    this.smoother = new HandSmoother(opts.smoothing);
+  }
 
   /** Load wasm + model. Must be awaited before start(). */
   async init(): Promise<void> {
@@ -47,6 +59,9 @@ export class HandTracker {
       wasmBase = '/mediapipe/wasm',
       modelPath = '/models/hand_landmarker.task',
       numHands = 2,
+      minDetectionConfidence = 0.5,
+      minPresenceConfidence = 0.4,
+      minTrackingConfidence = 0.4,
     } = this.opts;
 
     const fileset = await FilesetResolver.forVisionTasks(wasmBase);
@@ -54,6 +69,9 @@ export class HandTracker {
       baseOptions: { modelAssetPath: modelPath, delegate: 'GPU' },
       runningMode: 'VIDEO',
       numHands,
+      minHandDetectionConfidence: minDetectionConfidence,
+      minHandPresenceConfidence: minPresenceConfidence,
+      minTrackingConfidence,
     });
   }
 
@@ -99,14 +117,19 @@ export class HandTracker {
       return; // transient frame error — skip and try next frame
     }
 
-    const hands: HandLandmarks[] = result.landmarks.map((hand) =>
-      hand.map((p) => ({ x: p.x, y: p.y, z: p.z })),
-    );
     const labels: string[] = result.handedness.map(
       (h, i) => h[0]?.categoryName ?? `hand${i}`,
     );
 
-    const frame: HandTrackerFrame = { hands, labels, timestampMs };
+    // Smooth the raw landmarks per hand (One-Euro) — the Tasks API does no
+    // temporal filtering, so without this the points (and the pinch distance
+    // derived from them) jitter, which both looks shaky and flickers the pinch.
+    const smoothed: HandLandmarks[] = result.landmarks.map((hand, i) =>
+      this.smoother.smooth(labels[i] ?? `hand${i}`, hand.map((p) => ({ x: p.x, y: p.y, z: p.z })), timestampMs),
+    );
+    this.smoother.retain(new Set(labels));
+
+    const frame: HandTrackerFrame = { hands: smoothed, labels, timestampMs };
     for (const listener of this.listeners) listener(frame);
   };
 }
