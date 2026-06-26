@@ -31,6 +31,14 @@ clippy model. Only use model "clippy" when the user explicitly asks to see Clipp
 paperclip itself (e.g. "show me Clippy", "show the paperclip"). Otherwise pick the model from
 the rest of the sentence ("the rubber duck" -> rubber_duck).
 
+Concrete mappings (Command -> the "model" id you MUST output):
+- "Clippy, show me the rubber duck" -> "rubber_duck"
+- "Clippy, show the duck" -> "rubber_duck"
+- "Clippy, pull up the controller" -> "xbox_controller"
+- "Clippy, show the circuit board" -> "circuit"
+- "show me Clippy" -> "clippy"
+- "bring up the paperclip" -> "clippy"
+
 Intent rules:
 - Asking to see/bring up/pull up/display something -> "show_model", set model, clippy "presenting".
 - Asking about weight/price/size/specs of the current thing -> "lookup_spec". Use the most
