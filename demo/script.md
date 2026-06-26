@@ -46,9 +46,9 @@ The room checks out. Remote folks check out harder."*
 
 Presenter: (some casual yap about the new product) So this is our Xbox controller design... *goes to mouse to move solidworks, projected on TV* This new gen should be pretty familiar except we're introducing kryptonite joysticks for some extra durability. Hey guys... are you even listening? *camera pans from presenter to other meeting attendees*
 
-Attendee 1: Huh? Sorry... it's been a long day of meetings... What are we talking about?
-Attendee 2: I'm having a hard time picturing the scale... what does this look like in real life?
-Attendee 3: Kryptonite joysticks... how heavy is that?
+Attendee 1 (engagement): Huh? Sorry... it's been a long day of meetings... What are we talking about?
+Attendee 2 (engineer): I'm having a hard time picturing the scale... what does this look like in real life?
+Attendee 3 (external customer?): Kryptonite joysticks... how heavy is that?
 
 Presenter: Ah wait guys... I gotchu guys. Clippy, could you bring up the controller on ClipVIS?
 
@@ -61,7 +61,21 @@ pyramid / hologram window. Customers lean in.
 **On-screen text:** *ClipV.I.S. — a hologram for your customer meeting.*
 
 ### 0:32–1:25 — The demo (Make Something + Inspiring)
-Drive it with voice; the hologram follower mirrors every change in real time.
+
+---
+Presenter: Ah this is better. Now I can continue the presentation "hands free" (does gestures). Try it out! 
+
+Attendee 1: *spin the thing*? Woah... this is nice.. I get to actually interact with the product - I'm engaged! 
+
+Attendee 2: And I can see the product in real life! (for demo purposes the controller isn't actually at scale cause disclaimer cause our screen isn't big enough)
+
+Attendee 3: Hey clippy... what does this controller weigh? -> clippy answers
+
+Presenter: Clippy also has access to our catalogue of files. Let's look inside the controller - hey clippy, show me the circuit board. 
+
+---
+
+
 1. **"Spin it."** → it rotates; *"everyone around the table sees it from their angle."* (Pepper's-Ghost
    360° — the thing a slide can't do.)
 2. **"What does it weigh?"** → Clippy **points** and narrates the spec; the number floats next to the
@@ -74,6 +88,8 @@ Drive it with voice; the hologram follower mirrors every change in real time.
    A quick **"spin it"** to close the loop.
 **Throughout, call out the stack:** real **LLM brain** (Azure AI Foundry / GitHub Models), **voice
 in/out**, **hand-gesture** control, and the **four-camera pyramid** — all running on a laptop.
+
+
 
 ### 1:25–1:55 — Why it matters (Business Value, this challenge)
 **VO over a clean hologram shot:**
