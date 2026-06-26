@@ -1,40 +1,4 @@
-# ClipV.I.S. — Submission Video Script & Shot List
-
-> **Target length:** 2:30–3:00 (rules allow **2:00–5:00**). One take or lightly edited.
-> **Challenge:** Microsoft **Customer Engagement & Support**.
-> **The video answers the judges' step-by-step:** what we built, why, for whom, the
-> business value, why they'd use it, and the next steps.
-
-**Our customer (the user):** Microsoft **sellers, solution engineers, and customer-success/
-support teams** (MCAPS) who pitch and support physical products.
-**Their pain:** product conversations happen over flat slides — the room disengages, and remote
-attendees see even less.
-**Our promise:** *Bring the thing you're talking about into the room.*
-
-All spoken commands below are **really supported today** (see the cheat-sheet at the bottom), so the
-run is rehearsable and pre-cacheable.
-
----
-
-## How to shoot it (read first)
-
-Pepper's-Ghost pyramids are **hard to film** (dark room, faint ghost image, phone glare). Don't bet
-the submission on it. Shoot in two layers and cut together:
-
-- **Primary spine — clean screen capture.** Record the **presenter window** (`:5173/`) and the
-  **🔺 hologram follower** (`/hologram.html`) on screen. Crisp, guaranteed, readable. This is most of
-  the video.
-- **B-roll — real-pyramid beauty shot.** 5–10s of the physical pyramid on a table with people leaning
-  in. Intercut for the wow; never rely on it for clarity.
-
-**Pre-flight:** both processes running (`agent` on :3000, `gesture` on :5173); pre-cache the exact
-narration lines in `voice/clips/` so TTS is instant; rehearse the command order; have the **keyboard
-hotkeys ready as the silent fallback** if a voice command flubs (`P/G/B/M/Space/[ ]/1-4/K`, rotate
-`Q-E/R-F/C-V`, zoom `Z/X`). Default model is **clippy**.
-
----
-
-## The script (timecoded)
+# Script
 
 ### 0:00–0:18 — Cold open: the problem (for whom)
 **Shot:** a seller mid-pitch over a slide titled "Introducing the new Xbox controller." Two
@@ -46,11 +10,16 @@ The room checks out. Remote folks check out harder."*
 
 Presenter: (some casual yap about the new product) So this is our Xbox controller design... *goes to mouse to move solidworks, projected on TV* This new gen should be pretty familiar except we're introducing kryptonite joysticks for some extra durability. Hey guys... are you even listening? *camera pans from presenter to other meeting attendees*
 
-Attendee 1 (engagement): Huh? Sorry... it's been a long day of meetings... What are we talking about?
+
 Attendee 2 (engineer): I'm having a hard time picturing the scale... what does this look like in real life?
 Attendee 3 (external customer?): Kryptonite joysticks... how heavy is that?
+Attendee 1 (engagement): Huh? Sorry... it's been a long day of meetings... What are we talking about? *fiddling with duck*
 
-Presenter: Ah wait guys... I gotchu guys. Clippy, could you bring up the controller on ClipVIS?
+Presenter: Ah wait guys... I gotchu.  Yo (Attendee 1), pass me that duck. *drop duck into hologram box* 
+
+*blinks between hologram duck and real duck*
+
+
 
 ---
 
@@ -59,6 +28,10 @@ Presenter: Ah wait guys... I gotchu guys. Clippy, could you bring up the control
 **Shot:** cut to the presenter — Clippy **waves**, the controller **materializes** floating in the
 pyramid / hologram window. Customers lean in.
 **On-screen text:** *ClipV.I.S. — a hologram for your customer meeting.*
+
+Attendee 2: Wait... The duck is to scale! Woah!
+
+Presenter: Clippy, could you bring up the controller on ClipVIS?
 
 ### 0:32–1:25 — The demo (Make Something + Inspiring)
 
