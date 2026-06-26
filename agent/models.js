@@ -38,6 +38,15 @@ export const MODELS = {
     price: "n/a",
     owner: "ClipV.I.S.",
     blurb: "Clippy, your holographic assistant."
+  },
+  rubber_duck: {
+    name: "rubber_duck",
+    display: "Rubber Duck",
+    file: "rubber_duck.glb",
+    weight: "0.1 lbs",
+    price: "$5",
+    owner: "Debugging Team",
+    blurb: "A rubber duck — the developer's finest debugging companion."
   }
 };
 
@@ -59,7 +68,11 @@ export const ALIASES = {
   "board": "circuit",
   "clippy": "clippy",
   "paperclip": "clippy",
-  "clip": "clippy"
+  "clip": "clippy",
+  "rubber duck": "rubber_duck",
+  "rubber ducky": "rubber_duck",
+  "ducky": "rubber_duck",
+  "duck": "rubber_duck"
 };
 
 export function resolveModel(text) {

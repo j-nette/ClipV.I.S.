@@ -33,6 +33,8 @@ const QUICK_COMMANDS: Array<{ label: string; command: string }> = [
   { label: 'Show controller', command: 'Clippy, show me the Xbox controller' },
   { label: 'Circuit board', command: 'Clippy, show me the circuit board' },
   { label: 'Surface laptop', command: 'Clippy, show me the surface laptop' },
+  { label: 'Rubber duck', command: 'Clippy, show me the rubber duck' },
+  { label: 'Clippy', command: 'Clippy, show me Clippy' },
   { label: 'What does it weigh?', command: 'What does it weigh?' },
   { label: 'Explode it', command: 'Explode it' },
   { label: 'X-ray', command: 'X-ray' },

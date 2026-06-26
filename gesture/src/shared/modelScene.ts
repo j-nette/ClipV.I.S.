@@ -123,6 +123,11 @@ const PART_SPECS: Record<string, PartSpec[]> = {
     { id: 'chip_b', geo: () => new THREE.BoxGeometry(0.7, 0.18, 0.4), color: 0x333a45, pos: [0.5, 0.13, -0.2] },
     { id: 'cap', geo: () => new THREE.CylinderGeometry(0.12, 0.12, 0.3, 16), color: 0xc0c0c0, pos: [0.1, 0.18, 0.5] },
   ],
+  rubber_duck: [
+    { id: 'body', geo: () => new THREE.SphereGeometry(0.7, 24, 18), color: 0xffd400, pos: [0, -0.1, 0] },
+    { id: 'head', geo: () => new THREE.SphereGeometry(0.4, 24, 18), color: 0xffdd33, pos: [0.32, 0.55, 0] },
+    { id: 'beak', geo: () => new THREE.ConeGeometry(0.16, 0.34, 16), color: 0xff8c00, pos: [0.72, 0.5, 0] },
+  ],
 };
 
 function defaultPart(): PartSpec[] {

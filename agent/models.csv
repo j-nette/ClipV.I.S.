@@ -2,3 +2,5 @@ name,file,weight,price,owner,blurb
 xbox_controller,xbox_controller.glb,0.6 lbs,$59,Xbox Team,The Xbox Wireless Controller.
 surface_laptop,surface_laptop.glb,2.84 lbs,$999,Surface Team,The Microsoft Surface Laptop.
 circuit,circuit.glb,n/a,n/a,Devices Team,A circuit board assembly.
+clippy,clippy.glb,n/a,n/a,ClipV.I.S.,Clippy your holographic assistant.
+rubber_duck,rubber_duck.glb,0.1 lbs,$5,Debugging Team,A rubber duck the developer's finest debugging companion.
