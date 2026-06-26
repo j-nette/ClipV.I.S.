@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ClipV.I.S. — Hackathon Trifold Poster</title>
+<style>
+  :root{
+    --ink:#0e1330;
+    --purple:#6c4cf1;
+    --purple2:#9b5cff;
+    --cyan:#19d3ff;
+    --pink:#ff4fa3;
+    --amber:#ffb020;
+    --green:#1fd6a6;
+    --panel:#ffffff;
+    --soft:#f3f1ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:#222;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;color:var(--ink);}
+  /* The whole trifold: 3 panels side by side. Standard trifold ratio. */
+  .board{
+    display:flex;
+    width:1920px;            /* on-screen size; scales to paper on print */
+    margin:24px auto;
+    box-shadow:0 30px 80px rgba(0,0,0,.6);
+    background:#fff;
+  }
+  .panel{
+    width:640px;
+    min-height:1240px;
+    padding:34px 30px;
+    position:relative;
+    overflow:hidden;
+  }
+  .panel + .panel{border-left:2px dashed rgba(108,76,241,.25);} /* fold lines */
+
+  /* ---- shared bits ---- */
+  .eyebrow{
+    text-transform:uppercase;letter-spacing:3px;font-size:13px;font-weight:800;
+    color:var(--purple);margin-bottom:8px;
+  }
+  h2.section{
+    font-size:30px;font-weight:900;line-height:1.05;margin-bottom:14px;
+    display:flex;align-items:center;gap:10px;
+  }
+  h2.section .bar{width:42px;height:6px;border-radius:6px;background:linear-gradient(90deg,var(--purple),var(--cyan));}
+  p{font-size:17px;line-height:1.5;color:#2a2f52;}
+  .card{
+    background:var(--panel);border:2px solid #ececff;border-radius:18px;
+    padding:18px 18px;margin-bottom:18px;
+    box-shadow:0 8px 22px rgba(108,76,241,.06);
+  }
+  .imgslot{
+    border-radius:16px;background:
+      linear-gradient(135deg,rgba(108,76,241,.12),rgba(25,211,255,.12));
+    border:2px dashed rgba(108,76,241,.4);
+    display:flex;align-items:center;justify-content:center;text-align:center;
+    color:#6c4cf1;font-weight:700;font-size:14px;padding:14px;
+  }
+  .tag{
+    display:inline-block;background:var(--soft);color:var(--purple);
+    font-weight:800;font-size:13px;padding:6px 12px;border-radius:999px;margin:4px 4px 0 0;
+    border:1.5px solid rgba(108,76,241,.2);
+  }
+
+  /* =================== LEFT PANEL =================== */
+  .left{
+    background:
+      radial-gradient(1200px 500px at 0% 0%,rgba(155,92,255,.20),transparent 60%),
+      radial-gradient(900px 500px at 100% 100%,rgba(25,211,255,.18),transparent 60%),
+      linear-gradient(160deg,#10133a,#1a1456 60%,#241065);
+    color:#fff;
+  }
+  .left .eyebrow{color:var(--cyan);}
+  .left p{color:#d9defb;}
+  .logo{
+    font-size:62px;font-weight:900;letter-spacing:1px;line-height:.95;margin:6px 0 2px;
+    background:linear-gradient(90deg,#fff,#a9e8ff 50%,#ffcaf0);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .logo small{display:block;font-size:18px;font-weight:700;letter-spacing:1px;color:#bdb4ff;margin-top:6px;}
+  .clip-emoji{font-size:74px;line-height:1;filter:drop-shadow(0 6px 18px rgba(25,211,255,.5));}
+  .tagline{
+    font-size:24px;font-weight:800;line-height:1.2;margin:18px 0 6px;color:#fff;
+  }
+  .hero-pyramid{margin:18px auto 8px;display:block;}
+  .stat-row{display:flex;gap:12px;margin-top:14px;}
+  .stat{
+    flex:1;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.18);
+    border-radius:14px;padding:12px;text-align:center;
+  }
+  .stat b{display:block;font-size:26px;background:linear-gradient(90deg,#19d3ff,#9b5cff);
+    -webkit-background-clip:text;background-clip:text;color:transparent;}
+  .stat span{font-size:12px;color:#cdd3f7;font-weight:700;letter-spacing:.5px;}
+  .pill-row{margin-top:16px;}
+  .pill-row .tag{background:rgba(255,255,255,.10);color:#cfe9ff;border-color:rgba(255,255,255,.22);}
+
+  /* =================== CENTER PANEL =================== */
+  .center{background:linear-gradient(180deg,#ffffff,#faf9ff);}
+  .flow{display:flex;flex-direction:column;gap:0;align-items:center;margin-top:4px;}
+  .node{
+    width:100%;border-radius:16px;padding:14px 16px;color:#fff;font-weight:800;
+    display:flex;align-items:center;gap:12px;font-size:16px;
+    box-shadow:0 10px 22px rgba(0,0,0,.10);
+  }
+  .node .ic{font-size:24px;}
+  .node small{display:block;font-weight:600;font-size:12.5px;opacity:.92;}
+  .n1{background:linear-gradient(90deg,#6c4cf1,#9b5cff);}
+  .n2{background:linear-gradient(90deg,#9b5cff,#ff4fa3);}
+  .n3{background:linear-gradient(90deg,#ff4fa3,#ff7a59);}
+  .n4{background:linear-gradient(90deg,#ff7a59,#ffb020);}
+  .n5{background:linear-gradient(90deg,#16b39a,#1fd6a6);}
+  .n6{background:linear-gradient(90deg,#19a0ff,#19d3ff);}
+  .arrow{height:26px;width:4px;background:linear-gradient(#9b5cff,#19d3ff);position:relative;}
+  .arrow::after{content:"";position:absolute;bottom:-2px;left:-6px;border:8px solid transparent;border-top-color:#19d3ff;}
+  .stack-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px;}
+  .stack{
+    border-radius:14px;padding:12px;border:2px solid #eee;display:flex;gap:10px;align-items:center;
+    font-weight:700;font-size:14px;background:#fff;
+  }
+  .stack .dot{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;flex:none;}
+
+  /* =================== RIGHT PANEL =================== */
+  .right{
+    background:
+      radial-gradient(900px 500px at 100% 0%,rgba(31,214,166,.18),transparent 55%),
+      linear-gradient(180deg,#fff,#f3fffb);
+  }
+  .feat{display:flex;gap:14px;align-items:flex-start;margin-bottom:16px;}
+  .feat .badge{
+    width:52px;height:52px;border-radius:14px;flex:none;display:flex;align-items:center;justify-content:center;
+    font-size:26px;color:#fff;box-shadow:0 8px 18px rgba(0,0,0,.12);
+  }
+  .feat h3{font-size:19px;margin-bottom:3px;}
+  .feat p{font-size:15px;}
+  .b-voice{background:linear-gradient(135deg,#6c4cf1,#9b5cff);}
+  .b-gest{background:linear-gradient(135deg,#ff4fa3,#ff7a59);}
+  .b-holo{background:linear-gradient(135deg,#19a0ff,#19d3ff);}
+  .b-data{background:linear-gradient(135deg,#16b39a,#1fd6a6);}
+  .team{
+    background:linear-gradient(135deg,#10133a,#241065);color:#fff;border-radius:18px;padding:18px;margin-top:6px;
+  }
+  .team h3{color:#fff;font-size:18px;margin-bottom:8px;}
+  .team .tag{background:rgba(255,255,255,.12);color:#cfe9ff;border-color:rgba(255,255,255,.22);}
+  .footer-note{font-size:12px;color:#7b80a6;margin-top:14px;text-align:center;}
+
+  @media print{
+    @page{size:48in 36in;margin:0;}
+    html,body{background:#fff;}
+    .board{box-shadow:none;margin:0;width:100%;}
+    .noprint{display:none;}
+  }
+  .noprint{
+    text-align:center;color:#ddd;font-size:14px;margin:18px;
+  }
+</style>
+</head>
+<body>
+
+<div class="noprint">
+  📐 Trifold poster · Print → "Save as PDF" (landscape, scale to fit) for a 48×36in board, or use this as your Canva layout. Replace every dashed <b>IMAGE</b> box with a real photo/render.
+</div>
+
+<div class="board">
+
+  <!-- ================= LEFT PANEL : HOOK + PROBLEM ================= -->
+  <section class="panel left">
+    <div class="clip-emoji">📎⚡</div>
+    <div class="logo">ClipV.I.S.
+      <small>CLIPPY · VISUAL · INTELLIGENT · SYSTEM</small>
+    </div>
+    <p style="font-style:italic;color:#bdb4ff;margin-top:8px;">"Clippy, but they joined the Avengers."</p>
+
+    <div class="tagline">Bring the thing you're talking&nbsp;about into the room. 🔺</div>
+
+    <!-- SVG hologram pyramid illustration -->
+    <svg class="hero-pyramid" width="360" height="240" viewBox="0 0 360 240" fill="none">
+      <defs>
+        <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#19d3ff"/><stop offset="1" stop-color="#9b5cff"/>
+        </linearGradient>
+        <radialGradient id="glow" cx="50%" cy="40%" r="60%">
+          <stop offset="0" stop-color="#19d3ff" stop-opacity=".9"/>
+          <stop offset="1" stop-color="#19d3ff" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <ellipse cx="180" cy="120" rx="120" ry="80" fill="url(#glow)" opacity=".5"/>
+      <!-- floating controller (simple) -->
+      <g transform="translate(180,96)">
+        <rect x="-46" y="-14" width="92" height="34" rx="17" fill="url(#g1)"/>
+        <circle cx="-30" cy="3" r="7" fill="#10133a"/>
+        <circle cx="30" cy="-2" r="6" fill="#10133a"/>
+        <circle cx="18" cy="6" r="4" fill="#ff4fa3"/>
+      </g>
+      <text x="180" y="150" text-anchor="middle" fill="#cfe9ff" font-size="12" font-weight="700">live 3D model</text>
+      <!-- pyramid -->
+      <polygon points="180,120 60,230 300,230" fill="rgba(255,255,255,.06)" stroke="#19d3ff" stroke-width="2"/>
+      <polygon points="180,120 60,230 180,205" fill="rgba(25,211,255,.10)"/>
+      <polygon points="180,120 300,230 180,205" fill="rgba(155,92,255,.10)"/>
+      <rect x="60" y="230" width="240" height="6" rx="3" fill="#241065"/>
+    </svg>
+
+    <div class="card" style="background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.16);">
+      <div class="eyebrow">The Problem</div>
+      <p>Meetings about <b>physical things</b> — products, buildings, designs — get reduced to <b>flat slides</b>. You can't rotate them, see the back, or feel the size. So we hand-wave and say <i>"…trust me, it looks cool."</i></p>
+    </div>
+
+    <div class="card" style="background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.16);">
+      <div class="eyebrow">The Solution</div>
+      <p>A real <b>Pepper's-Ghost hologram pyramid</b> on the table. Say <b>"Clippy, show me the Xbox controller"</b> — it materializes in 3D, rotating, visible from every seat, narrated with live data.</p>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat"><b>360°</b><span>VISIBLE</span></div>
+      <div class="stat"><b>~$30</b><span>ACRYLIC</span></div>
+      <div class="stat"><b>4</b><span>CAM PINWHEEL</span></div>
+    </div>
+
+    <div class="pill-row">
+      <span class="tag">Hardware AI Innovation</span>
+      <span class="tag">MS Intern Hackathon 2026</span>
+    </div>
+  </section>
+
+  <!-- ================= CENTER PANEL : HOW IT WORKS ================= -->
+  <section class="panel center">
+    <div class="eyebrow">Under the hood</div>
+    <h2 class="section"><span class="bar"></span>How It Works</h2>
+    <p style="margin-bottom:16px;">Voice or gesture → an AI agent picks the model &amp; narration → live specs from Microsoft Fabric → rendered four ways and projected into the pyramid.</p>
+
+    <div class="flow">
+      <div class="node n1"><span class="ic">🎤</span><div>Voice in <small>Web Speech / on-device STT</small></div></div>
+      <div class="arrow"></div>
+      <div class="node n2"><span class="ic">🧠</span><div>AI agent brain <small>Azure AI Foundry / LLM · intent → model + script</small></div></div>
+      <div class="arrow"></div>
+      <div class="node n3"><span class="ic">🗄️</span><div>Microsoft Fabric <small>specs · price · weight · lineage</small></div></div>
+      <div class="arrow"></div>
+      <div class="node n4"><span class="ic">🟦</span><div>Three.js scene <small>loads .glb · animates Clippy · overlays data</small></div></div>
+      <div class="arrow"></div>
+      <div class="node n6"><span class="ic">🔺</span><div>4-camera pinwheel <small>4 viewports rotated 90°</small></div></div>
+      <div class="arrow"></div>
+      <div class="node n5"><span class="ic">🔊</span><div>Pyramid + TTS voice <small>acrylic Pepper's Ghost · "Charlie" speaks</small></div></div>
+    </div>
+
+    <div class="imgslot" style="height:150px;margin-top:18px;">
+      IMAGE: photo of the real acrylic pyramid on the table with the hologram glowing inside
+    </div>
+
+    <div class="eyebrow" style="margin-top:20px;">Built with</div>
+    <h2 class="section" style="font-size:24px;"><span class="bar"></span>Tech Stack</h2>
+    <div class="stack-grid">
+      <div class="stack"><span class="dot" style="background:linear-gradient(135deg,#6c4cf1,#9b5cff)">🧠</span>Azure AI Foundry · LLM</div>
+      <div class="stack"><span class="dot" style="background:linear-gradient(135deg,#16b39a,#1fd6a6)">🗄️</span>Microsoft Fabric</div>
+      <div class="stack"><span class="dot" style="background:linear-gradient(135deg,#19a0ff,#19d3ff)">🟦</span>Three.js / WebGL</div>
+      <div class="stack"><span class="dot" style="background:linear-gradient(135deg,#ff4fa3,#ff7a59)">✋</span>MediaPipe Hands</div>
+      <div class="stack"><span class="dot" style="background:linear-gradient(135deg,#9b5cff,#6c4cf1)">🗣️</span>ElevenLabs TTS</div>
+      <div class="stack"><span class="dot" style="background:linear-gradient(135deg,#ffb020,#ff7a59)">🔺</span>Pepper's Ghost optics</div>
+    </div>
+
+    <div class="card" style="margin-top:18px;background:linear-gradient(135deg,#f3f1ff,#eafaff);border-color:#e2e0ff;">
+      <div class="eyebrow">Demo command</div>
+      <p style="font-weight:800;font-size:18px;color:#3a2db0;">🎤 "Clippy, show me the Xbox controller… how much does it weigh?"</p>
+      <p style="margin-top:6px;">→ 0.6 lbs · $59 · Xbox Team — pulled live from Fabric, spoken by Clippy.</p>
+    </div>
+  </section>
+
+  <!-- ================= RIGHT PANEL : FEATURES + TEAM ================= -->
+  <section class="panel right">
+    <div class="eyebrow">What it does</div>
+    <h2 class="section"><span class="bar"></span>Features</h2>
+
+    <div class="feat">
+      <div class="badge b-voice">🎤</div>
+      <div><h3>Talk to it</h3><p>Natural voice summons any model. A real LLM maps what you say to the right 3D asset + narration.</p></div>
+    </div>
+    <div class="feat">
+      <div class="badge b-gest">✋</div>
+      <div><h3>Touch the air</h3><p>Webcam hand-tracking (MediaPipe): <b>point</b> to highlight, <b>pinch</b> to grab &amp; rotate, <b>two-hand pull-apart</b> to zoom.</p></div>
+    </div>
+    <div class="feat">
+      <div class="badge b-holo">🔺</div>
+      <div><h3>See it for real</h3><p>A four-camera volumetric pinwheel projects into the pyramid — visible 360°. Exploded view, x-ray &amp; wireframe modes.</p></div>
+    </div>
+    <div class="feat">
+      <div class="badge b-data">🗄️</div>
+      <div><h3>Real data overlay</h3><p>Floating spec labels — weight, price, owner — straight from a Microsoft Fabric lakehouse.</p></div>
+    </div>
+
+    <div class="imgslot" style="height:170px;">
+      IMAGE: screenshot of the hand-gesture skeleton overlay + the 3D model rotating
+    </div>
+
+    <div class="card" style="margin-top:18px;background:linear-gradient(135deg,#eafaff,#f3f1ff);border-color:#e2e0ff;">
+      <div class="eyebrow">Range</div>
+      <p>A controller → a laptop → an entire campus building. <b>If it has three dimensions, Clippy can show it.</b></p>
+      <div style="margin-top:8px;">
+        <span class="tag">Xbox Controller</span>
+        <span class="tag">Surface Pro 11</span>
+        <span class="tag">Surface Pro 10</span>
+        <span class="tag">Building 7</span>
+      </div>
+    </div>
+
+    <div class="imgslot" style="height:120px;">
+      IMAGE: Clippy mascot waving inside the pyramid
+    </div>
+
+    <div class="team">
+      <h3>👥 Team</h3>
+      <span class="tag">Baron</span><span class="tag">Claire</span><span class="tag">Jeanette</span>
+      <span class="tag">Kevin</span><span class="tag">Neha</span><span class="tag">Gebril</span>
+    </div>
+
+    <p class="footer-note">ClipV.I.S. · Microsoft Intern Hackathon 2026 · Hardware AI Innovation</p>
+  </section>
+
+</div>
+</body>
+</html>
