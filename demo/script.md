@@ -42,9 +42,20 @@ hotkeys ready as the silent fallback** if a voice command flubs (`P/G/B/M/Space/
 **VO (or on-screen text):** *"Every day, Microsoft sellers pitch real products… over flat slides.
 The room checks out. Remote folks check out harder."*
 
+--- 
+
+Presenter: (some casual yap about the new product) So this is our Xbox controller design... *goes to mouse to move solidworks, projected on TV* This new gen should be pretty familiar except we're introducing kryptonite joysticks for some extra durability. Hey guys... are you even listening? *camera pans from presenter to other meeting attendees*
+
+Attendee 1: Huh? Sorry... it's been a long day of meetings... What are we talking about?
+Attendee 2: I'm having a hard time picturing the scale... what does this look like in real life?
+Attendee 3: Kryptonite joysticks... how heavy is that?
+
+Presenter: Ah wait guys... I gotchu guys. Clippy, could you bring up the controller on ClipVIS?
+
+---
+
 ### 0:18–0:32 — The turn
-**Seller (to the table):** *"Okay — let's make this real."*
-**Seller (to the laptop):** *"Hey Clippy, show me the Xbox controller."*
+
 **Shot:** cut to the presenter — Clippy **waves**, the controller **materializes** floating in the
 pyramid / hologram window. Customers lean in.
 **On-screen text:** *ClipV.I.S. — a hologram for your customer meeting.*
